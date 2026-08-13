@@ -1,4 +1,3 @@
-import React from 'react';
 import { Profile } from './pages/Profile';
 
 function App() {
