@@ -20,6 +20,10 @@ interface ProfileViewProps {
   onPoderSeleccionado?: (poder: string) => void;
 }
 
+const xpBaseNivel = (nivel: number): number => {
+  return Math.floor(20 * Math.pow(nivel, 1.8));
+};
+
 const xpNecesaria = (nivel: number): number => {
   return Math.floor(20 * Math.pow(nivel + 1, 1.8));
 };
@@ -49,17 +53,17 @@ const calcularVersatilidad = (statPrincipal: 'fue' | 'int' | 'agi', stats: { fue
 const descripcionesPoderes: Record<string, { icono: string; descripcion: string; stat: 'fue' | 'int' | 'agi' }> = {
   'Golpe de rabia': {
     icono: 'emoji-angry-fill',
-    descripcion: 'Golpea descontroladamente a tu enemigo produciendo 150 % de daño. Al perder el control disminuye un 5 % tu defensa física durante 3 turnos.',
+    descripcion: 'Golpea descontroladamente a tu enemigo produciendo 150 % de daÃ±o. Al perder el control disminuye un 5 % tu defensa fÃ­sica durante 3 turnos.',
     stat: 'fue',
   },
   'Cauterizar': {
     icono: 'fire',
-    descripcion: 'Cauteriza las heridas produciendo un 10 % de daño y, consecuentemente, sana un 48 % de tu vida actual durante los siguientes 3 turnos.',
+    descripcion: 'Cauteriza las heridas produciendo un 10 % de daÃ±o y, consecuentemente, sana un 48 % de tu vida actual durante los siguientes 3 turnos.',
     stat: 'int',
   },
   'Empujar': {
     icono: 'person-arms-up',
-    descripcion: 'Empuja a tu enemigo y lo inhabilitas en el siguiente turno, pero al acercártele tu probabilidad de escape disminuye un 15 %.',
+    descripcion: 'Empuja a tu enemigo y lo inhabilitas en el siguiente turno, pero al acercÃ¡rtele tu probabilidad de escape disminuye un 15 %.',
     stat: 'agi',
   },
 };
@@ -107,7 +111,10 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
   const psActual = psMax;
   const pmActual = pmMax;
 
-  const xpNecesario = xpNecesaria(profile.nivel);
+  const xpBase = xpBaseNivel(profile.nivel);
+const xpSiguiente = xpNecesaria(profile.nivel);
+const xpEnEsteNivel = profile.xp_total - xpBase;
+const xpParaSubir = xpSiguiente - xpBase;
 
   const regenPS = (profile.fue * 0.4) + (profile.agi * 0.1) + 2;
   const regenPM = (profile.int * 0.5) + (profile.agi * 0.1) + 1;
@@ -119,7 +126,7 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
   const psPorcentaje = Math.min(100, (psActual / psMax) * 100);
   const pmPorcentaje = Math.min(100, (pmActual / pmMax) * 100);
   const energiaPorcentaje = Math.min(100, (profile.energia / 5) * 100);
-  const xpPorcentaje = Math.min(100, (profile.xp_total / xpNecesario) * 100);
+  const xpPorcentaje = Math.min(100, (xpEnEsteNivel / xpParaSubir) * 100);
 
   const puntosAsignados = profile.fue + profile.int + profile.agi;
   const mostrarEleccionPoder = !poderElegido && profile.clase === 'Marginado' && puntosAsignados >= 3;
@@ -131,11 +138,11 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
   const mostrarBotones = puntosDisponibles > 0 && !mostrarEleccionPoder;
 
   const estadisticasSecundarias = [
-    { label: 'Ataque físico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
-    { label: 'Ataque mágico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
-    { label: 'Defensa físico', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
-    { label: 'Defensa mágica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
-    { label: 'Precisión', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
+    { label: 'Ataque fÃ­sico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
+    { label: 'Ataque mÃ¡gico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
+    { label: 'Defensa fÃ­sica', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
+    { label: 'Defensa mÃ¡gica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
+    { label: 'PrecisiÃ³n', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
     { label: 'Escape', valor: `${calcularEvasion(profile.agi)}%`, icono: 'leaf' },
     { label: 'Velocidad', valor: calcularVelocidad(profile.agi), icono: 'speedometer' },
     { label: 'Suerte', valor: calcularSuerte(profile.nivel), icono: 'dice-4' },
@@ -187,7 +194,7 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
           </div>
           <div className="col-6">
             <div className="d-flex justify-content-between text-nowrap">
-              <span><i className="bi bi-tropical-storm" style={{ color: '#a855f7' }}></i> {profile.xp_total}/{xpNecesario}</span>
+              <span><i className="bi bi-tropical-storm" style={{ color: '#a855f7' }}></i> {xpEnEsteNivel}/{xpParaSubir}</span>
             </div>
             <div className="progress-custom">
               <div className="progress" style={{ height: '0.8rem' }}>
