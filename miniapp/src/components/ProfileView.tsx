@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from './Layout';
 import { getTheme } from '../utils/themes';
 import { supabase } from '../services/supabase';
@@ -15,6 +15,8 @@ interface ProfileViewProps {
     int: number;
     agi: number;
     energia: number;
+    ps_max: number;
+    pm_max: number;
     poder_elegido?: string | null;
   };
   onPoderSeleccionado?: (poder: string) => void;
@@ -37,9 +39,6 @@ const calcularEvasion = (agi: number) => Math.floor(5 + agi * 0.4);
 const calcularVelocidad = (agi: number) => Math.floor(10 + agi * 0.3);
 const calcularSuerte = (nivel: number) => Math.floor(5 + nivel * 0.3);
 
-const calcularPsMax = (fue: number, nivel: number) => 20 + fue * 3 + nivel * 2;
-const calcularPmMax = (int: number, nivel: number) => Math.ceil(10 + int * 2 + nivel * 1.5);
-
 const getStatPrincipal = (clase: string): 'fue' | 'int' | 'agi' | null => {
   if (clase === 'Marginado') return null;
   return null;
@@ -53,17 +52,17 @@ const calcularVersatilidad = (statPrincipal: 'fue' | 'int' | 'agi', stats: { fue
 const descripcionesPoderes: Record<string, { icono: string; descripcion: string; stat: 'fue' | 'int' | 'agi' }> = {
   'Golpe de rabia': {
     icono: 'emoji-angry-fill',
-    descripcion: 'Golpea descontroladamente a tu enemigo produciendo 150 % de daño. Al perder el control disminuye un 5 % tu defensa física durante 3 turnos.',
+    descripcion: 'Golpea descontroladamente a tu enemigo produciendo 150 % de daÃ±o. Al perder el control disminuye un 5 % tu defensa fÃ­sica durante 3 turnos.',
     stat: 'fue',
   },
   'Cauterizar': {
     icono: 'fire',
-    descripcion: 'Cauteriza las heridas produciendo un 10 % de daño y, consecuentemente, sana un 48 % de tu vida actual durante los siguientes 3 turnos.',
+    descripcion: 'Cauteriza las heridas produciendo un 10 % de daÃ±o y, consecuentemente, sana un 48 % de tu vida actual durante los siguientes 3 turnos.',
     stat: 'int',
   },
   'Empujar': {
     icono: 'person-arms-up',
-    descripcion: 'Empuja a tu enemigo y lo inhabilitas en el siguiente turno, pero al acercártele tu probabilidad de escape disminuye un 15 %.',
+    descripcion: 'Empuja a tu enemigo y lo inhabilitas en el siguiente turno, pero al acercÃ¡rtele tu probabilidad de escape disminuye un 15 %.',
     stat: 'agi',
   },
 };
@@ -77,13 +76,53 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
   });
   const [poderElegido, setPoderElegido] = useState<string | null>(perfil.poder_elegido || null);
   const [poderExpandido, setPoderExpandido] = useState<string | null>(null);
+  const [guardandoStat, setGuardandoStat] = useState<'fue' | 'int' | 'agi' | null>(null);
 
-  const asignarPunto = (stat: 'fue' | 'int' | 'agi') => {
-    if (puntosDisponibles <= 0) return;
-    const nuevo = { ...profile };
-    nuevo[stat] += 1;
+  // Resincroniza el estado local cada vez que el perfil del padre cambia
+  // (ej. al subir de nivel por XP ganada en el grupo, o al recargar el perfil desde Supabase).
+  // Sin esto, `profile` quedaba congelado con los valores del primer render.
+  useEffect(() => {
+    setProfile(perfil);
+    setPoderElegido(perfil.poder_elegido || null);
+    const asignados = perfil.fue + perfil.int + perfil.agi;
+    const totales = perfil.nivel - 1;
+    setPuntosDisponibles(totales - asignados > 0 ? totales - asignados : 0);
+  }, [perfil]);
+
+  const asignarPunto = async (stat: 'fue' | 'int' | 'agi') => {
+    if (puntosDisponibles <= 0 || guardandoStat) return;
+
+    const valorAnterior = profile[stat];
+    const puntosAnteriores = puntosDisponibles;
+    const nuevo = { ...profile, [stat]: valorAnterior + 1 };
+
+    // Actualización optimista de la UI
     setProfile(nuevo);
-    setPuntosDisponibles(puntosDisponibles - 1);
+    setPuntosDisponibles(puntosAnteriores - 1);
+    setGuardandoStat(stat);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ [stat]: nuevo[stat] })
+      .eq('telegram_id', profile.telegram_id)
+      .select('ps_max, pm_max')
+      .single();
+
+    setGuardandoStat(null);
+
+    if (error) {
+      // Revertir si falla el guardado en Supabase
+      console.error('Error guardando punto de talento:', error);
+      setProfile((prev) => ({ ...prev, [stat]: valorAnterior }));
+      setPuntosDisponibles(puntosAnteriores);
+      return;
+    }
+
+    // ps_max/pm_max los recalcula un trigger en la DB al actualizar fue/int/nivel;
+    // los tomamos de la respuesta para que la UI quede exactamente en sync con la DB.
+    if (data) {
+      setProfile((prev) => ({ ...prev, ps_max: data.ps_max, pm_max: data.pm_max }));
+    }
   };
 
   const seleccionarPoder = async (poder: string) => {
@@ -106,15 +145,15 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
 
   const theme = getTheme(profile.zona);
 
-  const psMax = calcularPsMax(profile.fue, profile.nivel);
-  const pmMax = calcularPmMax(profile.int, profile.nivel);
+  const psMax = profile.ps_max;
+  const pmMax = profile.pm_max;
   const psActual = psMax;
   const pmActual = pmMax;
 
   const xpBase = xpBaseNivel(profile.nivel);
-const xpSiguiente = xpNecesaria(profile.nivel);
-const xpEnEsteNivel = profile.xp_total - xpBase;
-const xpParaSubir = xpSiguiente - xpBase;
+  const xpSiguiente = xpNecesaria(profile.nivel);
+  const xpEnEsteNivel = profile.xp_total - xpBase;
+  const xpParaSubir = xpSiguiente - xpBase;
 
   const regenPS = (profile.fue * 0.4) + (profile.agi * 0.1) + 2;
   const regenPM = (profile.int * 0.5) + (profile.agi * 0.1) + 1;
@@ -138,11 +177,11 @@ const xpParaSubir = xpSiguiente - xpBase;
   const mostrarBotones = puntosDisponibles > 0 && !mostrarEleccionPoder;
 
   const estadisticasSecundarias = [
-    { label: 'Ataque físico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
-    { label: 'Ataque mágico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
-    { label: 'Defensa física', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
-    { label: 'Defensa mágica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
-    { label: 'Precisión', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
+    { label: 'Ataque fÃ­sico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
+    { label: 'Ataque mÃ¡gico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
+    { label: 'Defensa fÃ­sica', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
+    { label: 'Defensa mÃ¡gica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
+    { label: 'PrecisiÃ³n', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
     { label: 'Escape', valor: `${calcularEvasion(profile.agi)}%`, icono: 'leaf' },
     { label: 'Velocidad', valor: calcularVelocidad(profile.agi), icono: 'speedometer' },
     { label: 'Suerte', valor: calcularSuerte(profile.nivel), icono: 'dice-4' },
@@ -204,7 +243,7 @@ const xpParaSubir = xpSiguiente - xpBase;
           </div>
         </div>
 
-        {/* ESTAD�STICAS PRINCIPALES */}
+        {/* ESTADÍSTICAS PRINCIPALES */}
         <div className="mb-2">
           <div className="d-flex flex-nowrap gap-1 justify-content-center align-items-center">
             <div className="text-center" style={{ minWidth: '60px' }}>
@@ -215,7 +254,7 @@ const xpParaSubir = xpSiguiente - xpBase;
                 {mostrarBotones && (
                   <span
                     className="badge bg-danger text-white"
-                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: 'pointer' }}
+                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: guardandoStat ? 'wait' : 'pointer', opacity: guardandoStat ? 0.6 : 1 }}
                     onClick={() => asignarPunto('fue')}
                   >
                     <i className="bi bi-plus"></i>
@@ -231,7 +270,7 @@ const xpParaSubir = xpSiguiente - xpBase;
                 {mostrarBotones && (
                   <span
                     className="badge bg-primary text-white"
-                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: 'pointer' }}
+                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: guardandoStat ? 'wait' : 'pointer', opacity: guardandoStat ? 0.6 : 1 }}
                     onClick={() => asignarPunto('int')}
                   >
                     <i className="bi bi-plus"></i>
@@ -247,7 +286,7 @@ const xpParaSubir = xpSiguiente - xpBase;
                 {mostrarBotones && (
                   <span
                     className="badge bg-success text-white"
-                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: 'pointer' }}
+                    style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', cursor: guardandoStat ? 'wait' : 'pointer', opacity: guardandoStat ? 0.6 : 1 }}
                     onClick={() => asignarPunto('agi')}
                   >
                     <i className="bi bi-plus"></i>
@@ -350,7 +389,7 @@ const xpParaSubir = xpSiguiente - xpBase;
           </div>
         )}
 
-        {/* ESTAD�STICAS SECUNDARIAS */}
+        {/* ESTADÍSTICAS SECUNDARIAS */}
         <div className="px-1 mt-3" style={{ fontSize: '0.85rem' }}>
           {estadisticasSecundarias.map((stat, index) => (
             <div key={index} className="d-flex justify-content-between py-1 border-bottom" style={{ borderColor: `${theme.border}40` }}>
