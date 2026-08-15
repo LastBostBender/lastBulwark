@@ -18,17 +18,7 @@ interface ProfileViewProps {
     ps_max: number;
     pm_max: number;
   };
-  onPoderAprendido?: (poder: string) => void;
-}
-
-interface Poder {
-  id: number;
-  nombre: string;
-  tipo: 'activo' | 'pasivo' | 'aura' | 'efecto_temporal';
-  stat_requerido: 'fue' | 'int' | 'agi';
-  tier: 1 | 2;
-  descripcion: string;
-  icono: string;
+  onIrAPoderes?: () => void;
 }
 
 const xpBaseNivel = (nivel: number): number => {
@@ -58,15 +48,15 @@ const calcularVersatilidad = (statPrincipal: 'fue' | 'int' | 'agi', stats: { fue
   return Math.floor(1 + valor * 0.05);
 };
 
-// Stat(s) con más puntos invertidos. Puede haber empate (ej. 1/1/1 al llegar a 3 puntos),
-// en cuyo caso se ofrece más de un poder para que el jugador decida.
+// Stat(s) con más puntos invertidos. Se usa SOLO para saber si hay un poder pendiente
+// que mostrar como aviso — la elección real vive en PoderesView.
 const statsDominantes = (stats: { fue: number; int: number; agi: number }): Array<'fue' | 'int' | 'agi'> => {
   const max = Math.max(stats.fue, stats.int, stats.agi);
   if (max === 0) return [];
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
-export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
+export const ProfileView = ({ perfil, onIrAPoderes }: ProfileViewProps) => {
   const [profile, setProfile] = useState(perfil);
   const [puntosDisponibles, setPuntosDisponibles] = useState(() => {
     const asignados = perfil.fue + perfil.int + perfil.agi;
@@ -75,31 +65,33 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
   });
   const [guardandoStat, setGuardandoStat] = useState<'fue' | 'int' | 'agi' | null>(null);
 
-  // Catálogo completo de poderes (tabla `powers`) — se carga una vez.
-  const [catalogo, setCatalogo] = useState<Poder[]>([]);
-  // Nombres de los poderes que este jugador ya tiene en `character_powers`.
-  const [aprendidos, setAprendidos] = useState<string[]>([]);
-  const [poderExpandido, setPoderExpandido] = useState<string | null>(null);
-  const [aprendiendoPoder, setAprendiendoPoder] = useState<string | null>(null);
+  // Solo para saber si hay un poder pendiente de elegir (aviso, sin UI de detalle aquí).
+  const [statsConPoderPendiente, setStatsConPoderPendiente] = useState<Set<string>>(new Set());
+
+  const revisarPoderPendiente = async () => {
+    const [catalogoRes, aprendidosRes] = await Promise.all([
+      supabase.from('powers').select('nombre, stat_requerido, tier'),
+      supabase.from('character_powers').select('powers(nombre)').eq('telegram_id', perfil.telegram_id),
+    ]);
+    if (!catalogoRes.data) return;
+    const aprendidos = (aprendidosRes.data ?? []).map((row: any) => row.powers.nombre);
+    const puntosAsignados = perfil.fue + perfil.int + perfil.agi;
+    const dominantes = statsDominantes({ fue: perfil.fue, int: perfil.int, agi: perfil.agi });
+    const pendientes = catalogoRes.data.filter((p: any) => {
+      if (perfil.clase !== 'Marginado') return false;
+      if (aprendidos.includes(p.nombre)) return false;
+      if (!dominantes.includes(p.stat_requerido)) return false;
+      if (p.tier === 1) return puntosAsignados >= 3;
+      if (p.tier === 2) return puntosAsignados >= 7;
+      return false;
+    });
+    setStatsConPoderPendiente(new Set(pendientes.map((p: any) => p.stat_requerido)));
+  };
 
   useEffect(() => {
-    let activo = true;
-    (async () => {
-      const [catalogoRes, aprendidosRes] = await Promise.all([
-        supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono'),
-        supabase
-          .from('character_powers')
-          .select('powers(nombre)')
-          .eq('telegram_id', perfil.telegram_id),
-      ]);
-      if (!activo) return;
-      if (catalogoRes.data) setCatalogo(catalogoRes.data as Poder[]);
-      if (aprendidosRes.data) {
-        setAprendidos(aprendidosRes.data.map((row: any) => row.powers.nombre));
-      }
-    })();
-    return () => { activo = false; };
-  }, [perfil.telegram_id]);
+    revisarPoderPendiente();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil.telegram_id, perfil.fue, perfil.int, perfil.agi]);
 
   // Resincroniza el estado local cada vez que el perfil del padre cambia
   // (ej. al subir de nivel por XP ganada en el grupo, o al recargar el perfil desde Supabase).
@@ -111,8 +103,10 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
     setPuntosDisponibles(totales - asignados > 0 ? totales - asignados : 0);
   }, [perfil]);
 
+  const hayPoderPendiente = statsConPoderPendiente.size > 0;
+
   const asignarPunto = async (stat: 'fue' | 'int' | 'agi') => {
-    if (puntosDisponibles <= 0 || guardandoStat) return;
+    if (puntosDisponibles <= 0 || guardandoStat || hayPoderPendiente) return;
 
     const valorAnterior = profile[stat];
     const puntosAnteriores = puntosDisponibles;
@@ -147,32 +141,6 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
     }
   };
 
-  const aprenderPoder = async (poder: Poder) => {
-    if (aprendiendoPoder) return;
-    setAprendiendoPoder(poder.nombre);
-
-    const { error } = await supabase
-      .from('character_powers')
-      .insert({ telegram_id: profile.telegram_id, power_id: poder.id });
-
-    setAprendiendoPoder(null);
-
-    if (error) {
-      console.error('Error aprendiendo poder:', error);
-      return;
-    }
-
-    setAprendidos((prev) => [...prev, poder.nombre]);
-    setPoderExpandido(null);
-    if (onPoderAprendido) onPoderAprendido(poder.nombre);
-  };
-
-  const toggleExpandir = (poder: string) => {
-    setPoderExpandido(poderExpandido === poder ? null : poder);
-  };
-
-  const cancelarSeleccion = () => setPoderExpandido(null);
-
   const theme = getTheme(profile.zona);
 
   const psMax = profile.ps_max;
@@ -197,24 +165,7 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
   const energiaPorcentaje = Math.min(100, (profile.energia / 5) * 100);
   const xpPorcentaje = Math.min(100, (xpEnEsteNivel / xpParaSubir) * 100);
 
-  const puntosAsignados = profile.fue + profile.int + profile.agi;
-  const dominantes = statsDominantes({ fue: profile.fue, int: profile.int, agi: profile.agi });
-
-  // Tier 1 se ofrece a los 3 puntos, tier 2 a los 7 (3 primeros + 4 más) — ambos por el stat
-  // dominante EN ESE MOMENTO, sin perder lo ya aprendido en el tier anterior.
-  const poderesPendientes: Poder[] = catalogo.filter((p) => {
-    if (profile.clase !== 'Marginado') return false;
-    if (aprendidos.includes(p.nombre)) return false;
-    if (!dominantes.includes(p.stat_requerido)) return false;
-    if (p.tier === 1) return puntosAsignados >= 3;
-    if (p.tier === 2) return puntosAsignados >= 7;
-    return false;
-  });
-
-  const mostrarEleccionPoder = poderesPendientes.length > 0;
-  const mostrarBotones = puntosDisponibles > 0 && !mostrarEleccionPoder;
-
-  const poderesAprendidosInfo = catalogo.filter((p) => aprendidos.includes(p.nombre));
+  const mostrarBotones = puntosDisponibles > 0 && !hayPoderPendiente;
 
   const estadisticasSecundarias = [
     { label: 'Ataque físico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
@@ -344,91 +295,29 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
           </div>
         </div>
 
-        {/* PODERES A APRENDER (tier 1 a los 3 pts, tier 2 a los 7 pts, por stat dominante) */}
-        {mostrarEleccionPoder && (
-          <div className="mt-3">
-            <div className="text-center mb-2" style={{ color: theme.accent, fontSize: '0.8rem' }}>
-              <i className="bi bi-brilliance me-1"></i> Elige un poder
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              {poderesPendientes.map((poder) => {
-                const expandido = poderExpandido === poder.nombre;
-                return (
-                  <div key={poder.nombre} style={{ borderBottom: `1px solid ${theme.border}40` }}>
-                    <button
-                      onClick={() => toggleExpandir(poder.nombre)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.6rem',
-                        width: '100%',
-                        textAlign: 'left',
-                        background: 'transparent',
-                        border: 'none',
-                        padding: '0.4rem 0.2rem',
-                        fontFamily: 'var(--font-body)',
-                        fontSize: '0.95rem',
-                        color: theme.text,
-                        cursor: 'pointer',
-                        transition: 'background-color 0.1s ease',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,0,0.05)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
-                      <span>{poder.nombre}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.border }}>
-                        <i className={`bi bi-${expandido ? 'chevron-up' : 'chevron-right'}`}></i>
-                      </span>
-                    </button>
-                    {expandido && (
-                      <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', color: theme.border, fontSize: '0.9rem' }}>
-                        <p style={{ marginBottom: '0.5rem' }}>{poder.descripcion}</p>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button
-                            className="btn rounded-circle"
-                            style={{
-                              width: '2rem',
-                              height: '2rem',
-                              padding: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: theme.border,
-                              border: `1px solid ${theme.border}`,
-                              backgroundColor: 'transparent',
-                            }}
-                            onClick={(e) => { e.stopPropagation(); cancelarSeleccion(); }}
-                          >
-                            <i className="bi bi-x-lg"></i>
-                          </button>
-                          <button
-                            className="btn rounded-circle"
-                            style={{
-                              width: '2rem',
-                              height: '2rem',
-                              padding: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: theme.accent,
-                              border: `1px solid ${theme.accent}`,
-                              backgroundColor: 'transparent',
-                              opacity: aprendiendoPoder ? 0.6 : 1,
-                              cursor: aprendiendoPoder ? 'wait' : 'pointer',
-                            }}
-                            onClick={(e) => { e.stopPropagation(); aprenderPoder(poder); }}
-                          >
-                            <i className="bi bi-check-lg"></i>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        {/* AVISO: hay un poder por elegir → manda a la sección de Poderes */}
+        {hayPoderPendiente && (
+          <button
+            onClick={() => onIrAPoderes && onIrAPoderes()}
+            className="w-100 mt-2 mb-3"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              padding: '0.6rem 0.9rem',
+              backgroundColor: 'rgba(255,255,0,0.06)',
+              border: `1px solid ${theme.accent}`,
+              borderRadius: '4px',
+              color: theme.accent,
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="bi bi-bezier2" style={{ fontSize: '1.2rem' }}></i>
+            <span>Tienes un poder por elegir</span>
+            <i className="bi bi-chevron-right" style={{ marginLeft: 'auto', fontSize: '0.8rem' }}></i>
+          </button>
         )}
 
         {/* ESTADÍSTICAS SECUNDARIAS */}
@@ -448,50 +337,6 @@ export const ProfileView = ({ perfil, onPoderAprendido }: ProfileViewProps) => {
         <div className="mt-3 text-center" style={{ fontSize: '0.8rem', color: theme.accent }}>
           <i className="bi bi-coin me-1"></i> 0
         </div>
-
-        {/* PODERES APRENDIDOS */}
-        {poderesAprendidosInfo.length > 0 && (
-          <div className="mt-3">
-            <div className="text-center mb-2" style={{ color: theme.accent, fontSize: '0.8rem' }}>
-              <i className="bi bi-brilliance me-1" style={{ color: theme.accent }}></i> Poderes aprendidos
-            </div>
-            {poderesAprendidosInfo.map((poder) => (
-              <div key={poder.nombre} style={{ borderBottom: `1px solid ${theme.border}40`, backgroundColor: 'rgba(255,255,0,0.05)' }}>
-                <button
-                  onClick={() => toggleExpandir(poder.nombre)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    width: '100%',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '0.4rem 0.2rem',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.95rem',
-                    color: theme.accent,
-                    cursor: 'pointer',
-                    transition: 'background-color 0.1s ease',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,0,0.08)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
-                  <span>{poder.nombre}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.border }}>
-                    <i className={`bi bi-${poderExpandido === poder.nombre ? 'chevron-up' : 'chevron-right'}`}></i>
-                  </span>
-                </button>
-                {poderExpandido === poder.nombre && (
-                  <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', color: theme.border, fontSize: '0.9rem' }}>
-                    <p>{poder.descripcion}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </Layout>
   );
