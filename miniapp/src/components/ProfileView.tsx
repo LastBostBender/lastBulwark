@@ -27,6 +27,7 @@ interface ProfileViewProps {
     escape: number;
     velocidad: number;
     suerte: number;
+    critico: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
   // Notifica al padre (Profile.tsx) cada vez que el perfil cambia localmente,
@@ -225,6 +226,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     { label: 'Escape', valor: `${profile.escape}%`, icono: 'leaf' },
     { label: 'Velocidad', valor: profile.velocidad, icono: 'speedometer' },
     { label: 'Suerte', valor: profile.suerte, icono: 'dice-4' },
+    { label: 'Crítico', valor: `${profile.critico}%`, icono: 'arrow-through-heart' },
   ];
 
   if (mostrarVersatilidad) {
