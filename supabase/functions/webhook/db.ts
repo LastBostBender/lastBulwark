@@ -32,3 +32,22 @@ export async function sumarXP(telegramId: number, charCount: number) {
   }
   return res.json();
 }
+
+export async function registrarActividadGrupo(telegramId: number, chatId: number) {
+  const url = `${SUPABASE_URL}/rest/v1/player_groups?on_conflict=telegram_id,chat_id`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...SB_HEADERS_JSON,
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      telegram_id: telegramId,
+      chat_id: chatId,
+      last_activity: new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) {
+    console.error("Error registrando actividad de grupo:", await res.text());
+  }
+}
