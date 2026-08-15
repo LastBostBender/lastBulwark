@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Registro } from '../components/Registro';
+import { OnboardingFlow as Registro } from '../components/Registro';
 import { ProfileView } from '../components/ProfileView';
 import TelegramWebApp from '@twa-dev/sdk';
 
@@ -66,7 +66,7 @@ export const Profile = () => {
   }
 
   if (registro) {
-    return <Registro telegramId={TELEGRAM_ID} onRegistroCompletado={handleRegistroCompletado} />;
+    return <Registro telegramId={TELEGRAM_ID} onCompletado={handleRegistroCompletado} />;
   }
 
   return <ProfileView perfil={perfil} />;
