@@ -15,6 +15,7 @@ interface PoderesViewProps {
     agi: number;
   };
   onPoderAprendido?: (poder: string) => void;
+  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
 }
 
 interface Poder {
@@ -35,7 +36,7 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
-export const PoderesView = ({ perfil, onPoderAprendido }: PoderesViewProps) => {
+export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesViewProps) => {
   const [catalogo, setCatalogo] = useState<Poder[]>([]);
   const [aprendidos, setAprendidos] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -92,18 +93,22 @@ export const PoderesView = ({ perfil, onPoderAprendido }: PoderesViewProps) => {
   const puntosAsignados = perfil.fue + perfil.int + perfil.agi;
   const dominantes = statsDominantes({ fue: perfil.fue, int: perfil.int, agi: perfil.agi });
 
-  // Tier 1 a los 3 puntos, tier 2 a los 7 — por el stat dominante EN ESE MOMENTO,
+  // Tier 1 a los 4 puntos, tier 2 a los 7 — por el stat dominante EN ESE MOMENTO,
   // sin perder lo ya aprendido en el tier anterior.
+  const poderesAprendidosInfo = catalogo.filter((p) => aprendidos.includes(p.nombre));
+  const tiersYaElegidos = new Set(poderesAprendidosInfo.map((p) => p.tier));
+
   const poderesPendientes: Poder[] = catalogo.filter((p) => {
     if (perfil.clase !== 'Marginado') return false;
     if (aprendidos.includes(p.nombre)) return false;
+    // Solo se elige 1 poder por tier: si ya aprendió alguno de este tier
+    // (aunque haya sido de otro stat empatado), el resto deja de ofrecerse.
+    if (tiersYaElegidos.has(p.tier)) return false;
     if (!dominantes.includes(p.stat_requerido)) return false;
-    if (p.tier === 1) return puntosAsignados >= 3;
+    if (p.tier === 1) return puntosAsignados >= 4;
     if (p.tier === 2) return puntosAsignados >= 7;
     return false;
   });
-
-  const poderesAprendidosInfo = catalogo.filter((p) => aprendidos.includes(p.nombre));
 
   return (
     <Layout
@@ -111,6 +116,8 @@ export const PoderesView = ({ perfil, onPoderAprendido }: PoderesViewProps) => {
       clase={perfil.clase}
       nivel={perfil.nivel}
       zona={perfil.zona}
+      vistaActual="poderes"
+      onNavigate={onNavigate}
     >
       <div className="container mt-2">
         <div className="text-center mb-3" style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', letterSpacing: '1px', color: theme.accent }}>
@@ -235,7 +242,7 @@ export const PoderesView = ({ perfil, onPoderAprendido }: PoderesViewProps) => {
 
         {!cargando && poderesPendientes.length === 0 && poderesAprendidosInfo.length === 0 && (
           <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.border, marginTop: '2rem' }}>
-            Todavía no tienes poderes. Reparte puntos de talento en tu perfil para desbloquear el primero a los 3 puntos.
+            Todavía no tienes poderes. Reparte puntos de talento en tu perfil para desbloquear el primero a los 4 puntos.
           </p>
         )}
       </div>

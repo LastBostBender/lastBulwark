@@ -69,20 +69,24 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
   // Solo para saber si hay un poder pendiente de elegir (aviso, sin UI de detalle aquí).
   const [statsConPoderPendiente, setStatsConPoderPendiente] = useState<Set<string>>(new Set());
 
-  const revisarPoderPendiente = async () => {
+  const revisarPoderPendiente = async (stats: { fue: number; int: number; agi: number }) => {
     const [catalogoRes, aprendidosRes] = await Promise.all([
       supabase.from('powers').select('nombre, stat_requerido, tier'),
       supabase.from('character_powers').select('powers(nombre)').eq('telegram_id', perfil.telegram_id),
     ]);
     if (!catalogoRes.data) return;
     const aprendidos = (aprendidosRes.data ?? []).map((row: any) => row.powers.nombre);
-    const puntosAsignados = perfil.fue + perfil.int + perfil.agi;
-    const dominantes = statsDominantes({ fue: perfil.fue, int: perfil.int, agi: perfil.agi });
+    const puntosAsignados = stats.fue + stats.int + stats.agi;
+    const dominantes = statsDominantes(stats);
+    const tiersYaElegidos = new Set(
+      catalogoRes.data.filter((p: any) => aprendidos.includes(p.nombre)).map((p: any) => p.tier)
+    );
     const pendientes = catalogoRes.data.filter((p: any) => {
       if (perfil.clase !== 'Marginado') return false;
       if (aprendidos.includes(p.nombre)) return false;
+      if (tiersYaElegidos.has(p.tier)) return false;
       if (!dominantes.includes(p.stat_requerido)) return false;
-      if (p.tier === 1) return puntosAsignados >= 3;
+      if (p.tier === 1) return puntosAsignados >= 4;
       if (p.tier === 2) return puntosAsignados >= 7;
       return false;
     });
@@ -90,9 +94,9 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
   };
 
   useEffect(() => {
-    revisarPoderPendiente();
+    revisarPoderPendiente({ fue: profile.fue, int: profile.int, agi: profile.agi });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perfil.telegram_id, perfil.fue, perfil.int, perfil.agi]);
+  }, [perfil.telegram_id, profile.fue, profile.int, profile.agi]);
 
   // Resincroniza el estado local cada vez que el perfil del padre cambia
   // (ej. al subir de nivel por XP ganada en el grupo, o al recargar el perfil desde Supabase).

@@ -2,13 +2,18 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { OnboardingFlow as Registro } from '../components/Registro';
 import { ProfileView } from '../components/ProfileView';
+import { PoderesView } from '../components/PoderesView';
+import { Layout } from '../components/Layout';
 import TelegramWebApp from '@twa-dev/sdk';
+
+type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
 
 export const Profile = () => {
   const [perfil, setPerfil] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [registro, setRegistro] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vista, setVista] = useState<Vista>('perfil');
 
   // Obtener ID real de Telegram
   const user = TelegramWebApp.initDataUnsafe?.user;
@@ -69,5 +74,28 @@ export const Profile = () => {
     return <Registro telegramId={TELEGRAM_ID} onCompletado={handleRegistroCompletado} />;
   }
 
-  return <ProfileView perfil={perfil} />;
+  if (vista === 'poderes') {
+    return <PoderesView perfil={perfil} onNavigate={setVista} />;
+  }
+
+  // Mazmorra e Inventario todavía no existen como vistas propias.
+  // Placeholder para que los tabs del footer no queden muertos mientras se construyen.
+  if (vista === 'mazmorra' || vista === 'inventario') {
+    return (
+      <Layout
+        nombre={perfil.nombre_personaje}
+        clase={perfil.clase}
+        nivel={perfil.nivel}
+        zona={perfil.zona}
+        vistaActual={vista}
+        onNavigate={setVista}
+      >
+        <div className="text-center mt-5" style={{ fontFamily: 'var(--font-body)' }}>
+          {vista === 'mazmorra' ? 'La mazmorra aún no abre sus puertas.' : 'El inventario todavía está vacío... de código.'}
+        </div>
+      </Layout>
+    );
+  }
+
+  return <ProfileView perfil={perfil} onNavigate={setVista} />;
 };

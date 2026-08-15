@@ -1,16 +1,23 @@
 import React from 'react';
 import { getTheme } from '../utils/themes';
 
+type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
+
 interface LayoutProps {
   children: React.ReactNode;
   nombre: string;
   clase: string;
   nivel: number;
   zona?: string | null;
+  vistaActual?: Vista;
+  onNavigate?: (vista: Vista) => void;
 }
 
-export const Layout = ({ children, nombre, clase, nivel, zona }: LayoutProps) => {
+export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNavigate }: LayoutProps) => {
   const theme = getTheme(zona || null); // <--- CORREGIDO
+
+  const colorTab = (vista: Vista) => (vistaActual === vista ? theme.accent : theme.text);
+  const ir = (vista: Vista) => () => onNavigate && onNavigate(vista);
 
   return (
     <div className="d-flex flex-column vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
@@ -53,6 +60,7 @@ export const Layout = ({ children, nombre, clase, nivel, zona }: LayoutProps) =>
         }}
       >
         <button
+          onClick={ir('perfil')}
           className="btn rounded-circle d-flex align-items-center justify-content-center shadow-lg"
           style={{
             position: 'absolute',
@@ -82,19 +90,32 @@ export const Layout = ({ children, nombre, clase, nivel, zona }: LayoutProps) =>
             maskImage: 'radial-gradient(circle at center 0px, transparent 36px, black 37px)'
           }}
         >
-          <button
-            className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-            style={{ border: 'none', color: theme.text }}
-          >
-            <i className="bi bi-shield-shaded fs-4"></i>
-            <span className="small">Mazmorra</span>
-          </button>
+          <div className="d-flex" style={{ gap: '1.25rem' }}>
+            <button
+              onClick={ir('mazmorra')}
+              className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
+              style={{ border: 'none', color: colorTab('mazmorra') }}
+            >
+              <i className="bi bi-shield-shaded fs-4"></i>
+              <span className="small">Mazmorra</span>
+            </button>
+
+            <button
+              onClick={ir('poderes')}
+              className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
+              style={{ border: 'none', color: colorTab('poderes') }}
+            >
+              <i className="bi bi-bezier2 fs-4"></i>
+              <span className="small">Poderes</span>
+            </button>
+          </div>
 
           <div style={{ width: '80px' }}></div>
 
           <button
+            onClick={ir('inventario')}
             className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-            style={{ border: 'none', color: theme.text }}
+            style={{ border: 'none', color: colorTab('inventario') }}
           >
             <i className="bi bi-backpack fs-4"></i>
             <span className="small">Inventario</span>
