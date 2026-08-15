@@ -29,6 +29,9 @@ interface ProfileViewProps {
     suerte: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
+  // Notifica al padre (Profile.tsx) cada vez que el perfil cambia localmente,
+  // para que otras vistas (ej. PoderesView) reciban datos frescos sin recargar.
+  onProfileChange?: (perfil: any) => void;
 }
 
 const xpBaseNivel = (nivel: number): number => {
@@ -59,7 +62,7 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
-export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
+export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileViewProps) => {
   const [profile, setProfile] = useState(perfil);
   const [puntosDisponibles, setPuntosDisponibles] = useState(() => {
     const asignados = perfil.fue + perfil.int + perfil.agi;
@@ -83,11 +86,15 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
       return;
     }
     if (data) {
-      setProfile((prev) => ({
-        ...prev,
-        ps_actual: (data as any).ps_actual,
-        pm_actual: (data as any).pm_actual,
-      }));
+      setProfile((prev) => {
+        const actualizado = {
+          ...prev,
+          ps_actual: (data as any).ps_actual,
+          pm_actual: (data as any).pm_actual,
+        };
+        onProfileChange?.(actualizado);
+        return actualizado;
+      });
     }
   };
 
@@ -144,16 +151,20 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
     const puntosAnteriores = puntosDisponibles;
     const nuevo = { ...profile, [stat]: valorAnterior + 1 };
 
-    // Actualización optimista de la UI
+    // Actualización optimista de la UI (local y padre, para que Poderes ya vea el cambio)
     setProfile(nuevo);
     setPuntosDisponibles(puntosAnteriores - 1);
     setGuardandoStat(stat);
+    onProfileChange?.(nuevo);
 
+    // select('*') en vez de solo ps_max/pm_max: el trigger de la DB recalcula
+    // también ataque/defensa/precisión/etc., y antes esas quedaban desincronizadas
+    // hasta refrescar la miniapp a mano.
     const { data, error } = await supabase
       .from('profiles')
       .update({ [stat]: nuevo[stat] })
       .eq('telegram_id', profile.telegram_id)
-      .select('ps_max, pm_max')
+      .select('*')
       .single();
 
     setGuardandoStat(null);
@@ -161,15 +172,21 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
     if (error) {
       // Revertir si falla el guardado en Supabase
       console.error('Error guardando punto de talento:', error);
-      setProfile((prev) => ({ ...prev, [stat]: valorAnterior }));
+      const revertido = { ...profile, [stat]: valorAnterior };
+      setProfile(revertido);
       setPuntosDisponibles(puntosAnteriores);
+      onProfileChange?.(revertido);
       return;
     }
 
-    // ps_max/pm_max los recalcula un trigger en la DB al actualizar fue/int/nivel;
-    // los tomamos de la respuesta para que la UI quede exactamente en sync con la DB.
+    // Se sincroniza con TODO lo que devolvió la DB (incluye stats derivadas
+    // recalculadas por el trigger), y se propaga al padre.
     if (data) {
-      setProfile((prev) => ({ ...prev, ps_max: data.ps_max, pm_max: data.pm_max }));
+      setProfile((prev) => {
+        const actualizado = { ...prev, ...data };
+        onProfileChange?.(actualizado);
+        return actualizado;
+      });
     }
   };
 

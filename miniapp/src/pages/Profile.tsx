@@ -44,6 +44,25 @@ export const Profile = () => {
     cargarPerfil();
   }, []);
 
+  // El bot (backend de Telegram) puede subir de nivel o modificar el perfil
+  // mientras la miniapp está abierta. Sin esto, esos cambios solo se veían
+  // al cerrar y reabrir la miniapp.
+  useEffect(() => {
+    const canal = supabase
+      .channel(`profile-${TELEGRAM_ID}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `telegram_id=eq.${TELEGRAM_ID}` },
+        (payload) => setPerfil((prev: any) => ({ ...prev, ...payload.new }))
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [TELEGRAM_ID]);
+
   const handleRegistroCompletado = (data: any) => {
     setPerfil(data);
     setRegistro(false);
@@ -97,5 +116,5 @@ export const Profile = () => {
     );
   }
 
-  return <ProfileView perfil={perfil} onNavigate={setVista} />;
+  return <ProfileView perfil={perfil} onNavigate={setVista} onProfileChange={setPerfil} />;
 };
