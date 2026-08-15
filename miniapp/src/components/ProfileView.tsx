@@ -17,6 +17,16 @@ interface ProfileViewProps {
     energia: number;
     ps_max: number;
     pm_max: number;
+    ps_actual: number;
+    pm_actual: number;
+    ataque_fisico: number;
+    ataque_magico: number;
+    defensa_fisica: number;
+    defensa_magica: number;
+    precision_stat: number;
+    escape: number;
+    velocidad: number;
+    suerte: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
 }
@@ -30,14 +40,6 @@ const xpNecesaria = (nivel: number): number => {
   return Math.floor(20 * Math.pow(nivel + 1, 1.8));
 };
 
-const calcularAtaqueFisico = (fue: number, nivel: number) => Math.floor(fue * 1.5 + nivel * 0.5);
-const calcularAtaqueMagico = (int: number, nivel: number) => Math.floor(int * 1.5 + nivel * 0.5);
-const calcularDefensaFisica = (fue: number, nivel: number) => Math.floor(fue * 0.8 + nivel * 0.3);
-const calcularDefensaMagica = (int: number, nivel: number) => Math.floor(int * 0.8 + nivel * 0.3);
-const calcularPrecision = (agi: number) => Math.floor(70 + agi * 0.5);
-const calcularEvasion = (agi: number) => Math.floor(5 + agi * 0.4);
-const calcularVelocidad = (agi: number) => Math.floor(10 + agi * 0.3);
-const calcularSuerte = (nivel: number) => Math.floor(5 + nivel * 0.3);
 
 const getStatPrincipal = (clase: string): 'fue' | 'int' | 'agi' | null => {
   if (clase === 'Marginado') return null;
@@ -68,6 +70,31 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
 
   // Solo para saber si hay un poder pendiente de elegir (aviso, sin UI de detalle aquí).
   const [statsConPoderPendiente, setStatsConPoderPendiente] = useState<Set<string>>(new Set());
+
+  // Al entrar al perfil, se calcula cuánto PS/PM se regeneraron desde la
+  // última vez (RPC en la DB, basado en minutos transcurridos) y se sincroniza
+  // el estado local con los valores reales — ya no es un número decorativo.
+  const regenerarRecursos = async () => {
+    const { data, error } = await supabase
+      .rpc('regenerar_recursos', { p_telegram_id: perfil.telegram_id })
+      .single();
+    if (error) {
+      console.error('Error regenerando recursos:', error);
+      return;
+    }
+    if (data) {
+      setProfile((prev) => ({
+        ...prev,
+        ps_actual: (data as any).ps_actual,
+        pm_actual: (data as any).pm_actual,
+      }));
+    }
+  };
+
+  useEffect(() => {
+    regenerarRecursos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil.telegram_id]);
 
   const revisarPoderPendiente = async (stats: { fue: number; int: number; agi: number }) => {
     const [catalogoRes, aprendidosRes] = await Promise.all([
@@ -150,8 +177,8 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
 
   const psMax = profile.ps_max;
   const pmMax = profile.pm_max;
-  const psActual = psMax;
-  const pmActual = pmMax;
+  const psActual = Math.min(profile.ps_actual, psMax);
+  const pmActual = Math.min(profile.pm_actual, pmMax);
 
   const xpBase = xpBaseNivel(profile.nivel);
   const xpSiguiente = xpNecesaria(profile.nivel);
@@ -173,14 +200,14 @@ export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
   const mostrarBotones = puntosDisponibles > 0 && !hayPoderPendiente;
 
   const estadisticasSecundarias = [
-    { label: 'Ataque físico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
-    { label: 'Ataque mágico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
-    { label: 'Defensa física', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
-    { label: 'Defensa mágica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
-    { label: 'Precisión', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
-    { label: 'Escape', valor: `${calcularEvasion(profile.agi)}%`, icono: 'leaf' },
-    { label: 'Velocidad', valor: calcularVelocidad(profile.agi), icono: 'speedometer' },
-    { label: 'Suerte', valor: calcularSuerte(profile.nivel), icono: 'dice-4' },
+    { label: 'Ataque físico', valor: profile.ataque_fisico, icono: 'emoji-angry' },
+    { label: 'Ataque mágico', valor: profile.ataque_magico, icono: 'magic' },
+    { label: 'Defensa física', valor: profile.defensa_fisica, icono: 'shield' },
+    { label: 'Defensa mágica', valor: profile.defensa_magica, icono: 'shield-exclamation' },
+    { label: 'Precisión', valor: `${profile.precision_stat}%`, icono: 'bullseye' },
+    { label: 'Escape', valor: `${profile.escape}%`, icono: 'leaf' },
+    { label: 'Velocidad', valor: profile.velocidad, icono: 'speedometer' },
+    { label: 'Suerte', valor: profile.suerte, icono: 'dice-4' },
   ];
 
   if (mostrarVersatilidad) {
