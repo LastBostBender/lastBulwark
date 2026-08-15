@@ -75,6 +75,38 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   // Solo para saber si hay un poder pendiente de elegir (aviso, sin UI de detalle aquí).
   const [statsConPoderPendiente, setStatsConPoderPendiente] = useState<Set<string>>(new Set());
 
+  // Bonus % de los pasivos de zona SIEMPRE-ACTIVOS que apliquen ahora mismo
+  // (según temporada real). Ej: { ataque_fisico: 5, ataque_magico: 5 } para
+  // "Hijos del sol" en Las Calderas durante el verano.
+  const [bonusZona, setBonusZona] = useState<Record<string, number>>({});
+  const [pasivosZonaActivos, setPasivosZonaActivos] = useState<{ nombre: string; descripcion_flavor: string }[]>([]);
+
+  const cargarPasivosZona = async () => {
+    const [bonusRes, temporadaRes] = await Promise.all([
+      supabase.rpc('obtener_bonus_zona', { p_zona: perfil.zona }),
+      supabase.rpc('temporada_actual'),
+    ]);
+    if (bonusRes.data) {
+      const mapa: Record<string, number> = {};
+      for (const fila of bonusRes.data as any[]) mapa[fila.stat] = Number(fila.bonus_pct);
+      setBonusZona(mapa);
+    }
+    const temporadaActual = temporadaRes.data as string | null;
+    let query = supabase
+      .from('zone_passives')
+      .select('nombre, descripcion_flavor')
+      .eq('zona', perfil.zona)
+      .eq('tipo', 'permanente');
+    if (temporadaActual) query = query.or(`temporada.is.null,temporada.eq.${temporadaActual}`);
+    const listaRes = await query;
+    if (listaRes.data) setPasivosZonaActivos(listaRes.data as any[]);
+  };
+
+  useEffect(() => {
+    cargarPasivosZona();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil.zona]);
+
   // Al entrar al perfil, se calcula cuánto PS/PM se regeneraron desde la
   // última vez (RPC en la DB, basado en minutos transcurridos) y se sincroniza
   // el estado local con los valores reales — ya no es un número decorativo.
@@ -203,8 +235,13 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const xpEnEsteNivel = profile.xp_total - xpBase;
   const xpParaSubir = xpSiguiente - xpBase;
 
-  const regenPS = (profile.fue * 0.4) + (profile.agi * 0.1) + 2;
-  const regenPM = (profile.int * 0.5) + (profile.agi * 0.1) + 1;
+  // regen_ps / regen_pm: bonus de Voracidad (Brote de Acero) aplicado al ritmo mostrado.
+  const regenPS = ((profile.fue * 0.4) + (profile.agi * 0.1) + 2) * (1 + (bonusZona.regen_ps ?? 0) / 100);
+  const regenPM = ((profile.int * 0.5) + (profile.agi * 0.1) + 1) * (1 + (bonusZona.regen_pm ?? 0) / 100);
+
+  // Aplica el bonus de zona (si corresponde) a una stat de combate persistida.
+  const conBonus = (statKey: string, base: number) =>
+    Math.round(base * (1 + (bonusZona[statKey] ?? 0) / 100));
 
   const statPrincipal = getStatPrincipal(profile.clase);
   const versatilidad = statPrincipal ? calcularVersatilidad(statPrincipal, { fue: profile.fue, int: profile.int, agi: profile.agi }) : 0;
@@ -218,10 +255,10 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const mostrarBotones = puntosDisponibles > 0 && !hayPoderPendiente;
 
   const estadisticasSecundarias = [
-    { label: 'Ataque físico', valor: profile.ataque_fisico, icono: 'emoji-angry' },
-    { label: 'Ataque mágico', valor: profile.ataque_magico, icono: 'magic' },
-    { label: 'Defensa física', valor: profile.defensa_fisica, icono: 'shield' },
-    { label: 'Defensa mágica', valor: profile.defensa_magica, icono: 'shield-exclamation' },
+    { label: 'Ataque físico', valor: conBonus('ataque_fisico', profile.ataque_fisico), icono: 'emoji-angry', bonus: bonusZona.ataque_fisico },
+    { label: 'Ataque mágico', valor: conBonus('ataque_magico', profile.ataque_magico), icono: 'magic', bonus: bonusZona.ataque_magico },
+    { label: 'Defensa física', valor: conBonus('defensa_fisica', profile.defensa_fisica), icono: 'shield', bonus: bonusZona.defensa_fisica },
+    { label: 'Defensa mágica', valor: conBonus('defensa_magica', profile.defensa_magica), icono: 'shield-exclamation', bonus: bonusZona.defensa_magica },
     { label: 'Precisión', valor: `${profile.precision_stat}%`, icono: 'bullseye' },
     { label: 'Escape', valor: `${profile.escape}%`, icono: 'leaf' },
     { label: 'Velocidad', valor: profile.velocidad, icono: 'speedometer' },
@@ -249,7 +286,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
             <div className="d-flex justify-content-between text-nowrap">
               <span><i className="bi bi-heart text-success"></i> {psActual}/{psMax}</span>
               <span className="text-success" style={{ fontSize: '0.7rem' }}>
-                <i className="bi bi-hearts text-success"></i> +{regenPS.toFixed(1)}/m
+                <i className="bi bi-hearts text-success"></i> +{regenPS.toFixed(1)}/m{!!bonusZona.regen_ps && ' 🌿'}
               </span>
             </div>
             <div className="progress-custom">
@@ -260,7 +297,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
             <div className="d-flex justify-content-between text-nowrap">
               <span><i className="bi bi-water text-info"></i> {pmActual}/{pmMax}</span>
               <span className="text-info" style={{ fontSize: '0.7rem' }}>
-                <i className="bi bi-droplet-half text-info"></i> +{regenPM.toFixed(1)}/m
+                <i className="bi bi-droplet-half text-info"></i> +{regenPM.toFixed(1)}/m{!!bonusZona.regen_pm && ' 🌿'}
               </span>
             </div>
             <div className="progress-custom">
@@ -381,10 +418,31 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
                 <i className={`bi bi-${stat.icono} me-2`} style={{ color: theme.accent, fontSize: '0.8rem' }}></i>
                 {stat.label}
               </span>
-              <span className="fw-bold" style={{ color: theme.text }}>{stat.valor}</span>
+              <span className="fw-bold" style={{ color: theme.text }}>
+                {stat.valor}
+                {!!stat.bonus && (
+                  <span style={{ color: theme.accent, fontSize: '0.7rem', marginLeft: '0.35rem' }}>
+                    (+{stat.bonus}% zona)
+                  </span>
+                )}
+              </span>
             </div>
           ))}
         </div>
+
+        {/* PASIVOS DE ZONA ACTIVOS — para que se note la diferencia, no solo el número */}
+        {pasivosZonaActivos.length > 0 && (
+          <div className="mt-3 px-1" style={{ fontSize: '0.75rem' }}>
+            <div className="mb-1" style={{ color: theme.accent }}>
+              <i className="bi bi-geo-alt-fill me-1"></i> Pasivo{pasivosZonaActivos.length > 1 ? 's' : ''} de {profile.zona}
+            </div>
+            {pasivosZonaActivos.map((p) => (
+              <div key={p.nombre} style={{ color: theme.border, marginBottom: '0.15rem' }}>
+                <span style={{ color: theme.text }}>{p.nombre}:</span> {p.descripcion_flavor}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ORO */}
         <div className="mt-3 text-center" style={{ fontSize: '0.8rem', color: theme.accent }}>

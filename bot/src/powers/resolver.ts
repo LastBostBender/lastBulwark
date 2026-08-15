@@ -8,18 +8,25 @@ export type Unidad =
   | 'porcentaje_ataque_fisico'
   | 'porcentaje_ataque_magico'
   | 'porcentaje_vida_actual'
+  | 'porcentaje_vida_maxima'
   | 'porcentaje_stat'
   | 'puntos_porcentuales'
   | 'turnos';
 
 export interface EfectoPoder {
-  trigger: 'on_use' | 'on_turn_start' | 'on_hit_received';
-  target: 'enemigo' | 'self';
+  // 'permanente': el efecto está siempre activo (dentro y fuera de combate), no se "dispara".
+  // 'on_golpe_fisico' / 'on_hechizo' / 'on_accion_ofensiva' (cualquiera de los dos anteriores):
+  // usados por pasivos de zona probabilísticos.
+  trigger: 'on_use' | 'on_turn_start' | 'on_hit_received' | 'permanente' | 'on_golpe_fisico' | 'on_hechizo' | 'on_accion_ofensiva';
+  // 'aliado_objetivo': el aliado específico al que se dirigió la acción (ej. Escarchas).
+  // 'aliado_aleatorio': un aliado cualquiera, sin relación con la acción (ej. Salpicadura ácida).
+  // 'todos_aliados' / 'todos_enemigos' / 'todos_en_combate': efectos de área.
+  target: 'enemigo' | 'self' | 'aliado_objetivo' | 'aliado_aleatorio' | 'todos_aliados' | 'todos_enemigos' | 'todos_en_combate';
   tipo: TipoEfecto;
   stat?: string; // requerido cuando tipo es buff/debuff sobre un stat puntual
   valor: number;
   unidad: Unidad;
-  duracion_turnos: number | null; // null = dura lo que dure el combate
+  duracion_turnos: number | null; // null = dura lo que dure el combate (o permanente, si trigger lo es)
   reparto?: 'total_repartido' | 'por_turno'; // solo relevante si duracion_turnos > 0
 }
 
@@ -33,7 +40,7 @@ export interface Combatiente {
 // Un delta es "lo que hay que aplicarle a quién", sin decidir CUÁNDO
 // (eso lo decide el loop de combate según trigger/duracion_turnos).
 export interface DeltaAplicado {
-  target: 'enemigo' | 'self';
+  target: EfectoPoder['target'];
   stat: string; // 'ps_actual' para daño/curación, o el stat afectado en buff/debuff
   delta: number; // ya calculado en unidades absolutas, listo para sumar/restar
   duracion_turnos: number | null;
@@ -67,6 +74,19 @@ export function resolverEfecto(
         delta: -Math.round((usuario.ataque_magico * efecto.valor) / 100),
         duracion_turnos: efecto.duracion_turnos,
       };
+
+    case 'porcentaje_vida_maxima': {
+      // A diferencia de 'porcentaje_vida_actual', el % se calcula siempre sobre
+      // el tope (ps_max), no sobre cuánta vida le quede al objetivo en ese momento.
+      const signo = efecto.tipo === 'curacion' ? 1 : -1;
+      const psMax = (base as any).ps_max ?? base.ps_actual;
+      return {
+        target: efecto.target,
+        stat: 'ps_actual',
+        delta: signo * Math.round((psMax * efecto.valor) / 100),
+        duracion_turnos: efecto.duracion_turnos,
+      };
+    }
 
     case 'porcentaje_vida_actual': {
       const totalPorcentaje = efecto.valor;
