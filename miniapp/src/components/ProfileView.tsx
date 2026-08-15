@@ -178,14 +178,14 @@ export const ProfileView = ({ perfil, onPoderSeleccionado }: ProfileViewProps) =
   const mostrarBotones = puntosDisponibles > 0 && !mostrarEleccionPoder;
 
   const estadisticasSecundarias = [
-    { label: 'Ataque fÃ­sico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
-    { label: 'Ataque mÃ¡gico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
-    { label: 'Defensa fÃ­sica', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
-    { label: 'Defensa mÃ¡gica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
-    { label: 'PrecisiÃ³n', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
+    { label: 'Ataque físico', valor: calcularAtaqueFisico(profile.fue, profile.nivel), icono: 'emoji-angry' },
+    { label: 'Ataque mágico', valor: calcularAtaqueMagico(profile.int, profile.nivel), icono: 'magic' },
+    { label: 'Defensa física', valor: calcularDefensaFisica(profile.fue, profile.nivel), icono: 'shield' },
+    { label: 'Defensa mágica', valor: calcularDefensaMagica(profile.int, profile.nivel), icono: 'shield-exclamation' },
+    { label: 'Precisión', valor: `${calcularPrecision(profile.agi)}%`, icono: 'bullseye' },
     { label: 'Escape', valor: `${calcularEvasion(profile.agi)}%`, icono: 'leaf' },
     { label: 'Velocidad', valor: calcularVelocidad(profile.agi), icono: 'speedometer' },
-    { label: 'Suerte', valor: calcularSuerte(profile.nivel), icono: 'dice-4' },
+    { label: 'Suerte', valor: calcularSuerte(profile.nivel), icono: 'dice-5' },
   ];
 
   if (mostrarVersatilidad) {
