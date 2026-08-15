@@ -18,10 +18,11 @@ interface ProfileViewProps {
     ps_max: number;
     pm_max: number;
   };
-  onIrAPoderes?: () => void;
+  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
 }
 
 const xpBaseNivel = (nivel: number): number => {
+  if (nivel <= 1) return 0;
   return Math.floor(20 * Math.pow(nivel, 1.8));
 };
 
@@ -56,7 +57,7 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
-export const ProfileView = ({ perfil, onIrAPoderes }: ProfileViewProps) => {
+export const ProfileView = ({ perfil, onNavigate }: ProfileViewProps) => {
   const [profile, setProfile] = useState(perfil);
   const [puntosDisponibles, setPuntosDisponibles] = useState(() => {
     const asignados = perfil.fue + perfil.int + perfil.agi;
@@ -188,6 +189,8 @@ export const ProfileView = ({ perfil, onIrAPoderes }: ProfileViewProps) => {
       clase={profile.clase}
       nivel={profile.nivel}
       zona={profile.zona}
+      vistaActual="perfil"
+      onNavigate={onNavigate}
     >
       <div className="container mt-2">
         {/* BARRAS DE RECURSOS */}
@@ -298,7 +301,7 @@ export const ProfileView = ({ perfil, onIrAPoderes }: ProfileViewProps) => {
         {/* AVISO: hay un poder por elegir → manda a la sección de Poderes */}
         {hayPoderPendiente && (
           <button
-            onClick={() => onIrAPoderes && onIrAPoderes()}
+            onClick={() => onNavigate && onNavigate('poderes')}
             className="w-100 mt-2 mb-3"
             style={{
               display: 'flex',
