@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { getTheme } from '../utils/themes';
 import { supabase } from '../services/supabase';
 
@@ -22,7 +22,7 @@ interface ZonaInfo {
 const ZONAS: ZonaInfo[] = [
   {
     id: 'Las calderas',
-    icono: '🌋',
+    icono: 'bucket',
     narrativa:
       'El volcán no está muerto. Respira. Y su aliento es una columna de ceniza que tiñe el cielo de plomo durante semanas.\n\n' +
       'En su ladera, los restos de una civilización que creyó domar el fuego cuelgan como costillas rotas: cadenas de montaje retorcidas, hornos fríos que escupen polvo cuando el viento se cuela por las grietas, raíles que se hunden en la lava solidificada.\n\n' +
@@ -39,7 +39,7 @@ const ZONAS: ZonaInfo[] = [
   },
   {
     id: 'Brote de acero',
-    icono: '🪾',
+    icono: 'tree',
     narrativa:
       'No hay murallas aquí. No las necesitas. El bosque de metal podrido que se extiende hasta donde alcanza la vista es tu única defensa. Y también tu condena.\n\n' +
       'La lluvia no cae, se desliza. Se cuela por las grietas de tu armadura, por las rendijas de tu respiradero. No es agua, es aliento de la tierra. Disuelve el óxido, pero también la carne. Y sin embargo, sin ella, no sobrevives. Es un pacto: te pudre, pero te alimenta.\n\n' +
@@ -56,7 +56,7 @@ const ZONAS: ZonaInfo[] = [
   },
   {
     id: 'El alacranero',
-    icono: '🦂',
+    icono: 'bug-fill',
     narrativa:
       'El otoño no es una estación aquí. Es una condena. Las noches se alargan como dedos de hambre, y el frío no llega de golpe, se cuela por los huesos, una caricia que anuncia lo que viene.\n\n' +
       'El mundo ha perdido el color. Todo es gris, ocre, herrumbre. Los pocos árboles que quedan son esqueletos de metal retorcido, y el viento que silba entre sus ramas parece llevar voces de otros tiempos. Las bestias que sobreviven aquí no son grandes ni fuertes; son pacientes. Han aprendido a moverse en la penumbra, a oler el miedo antes de que el miedo sepa que está siendo olido.\n\n' +
@@ -72,7 +72,7 @@ const ZONAS: ZonaInfo[] = [
   },
   {
     id: 'Última aurora',
-    icono: '💠',
+    icono: 'snow2',
     narrativa:
       'El invierno no llegó. Siempre estuvo. Solo que antes había treguas. Ahora no.\n\n' +
       'La luz es un rumor. El día dura lo que un suspiro envenenado. El resto es noche, y la noche es una bestia que te lame los huesos. La vida aquí no florece, se enquista. La gente no vive, aguarda. No hay esperanza, solo memoria de lo que fue calor.\n\n' +
@@ -127,6 +127,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
   const [errorNombre, setErrorNombre] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
+  const [perfilCreado, setPerfilCreado] = useState<any>(null);
 
   const tema = zonaActiva ? getTheme(zonaActiva.id) : temaNeutro;
 
@@ -162,9 +163,11 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
     setGuardando(true);
     setErrorGuardado(null);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .insert({ telegram_id: id, nombre_personaje: nombre, zona: zonaActiva.id });
+      .insert({ telegram_id: id, nombre_personaje: nombre, zona: zonaActiva.id })
+      .select()
+      .single();
 
     setGuardando(false);
 
@@ -174,8 +177,8 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
       return;
     }
 
+    setPerfilCreado(data);
     setPaso('completado');
-    onCompletado({ telegram_id: id, nombre_personaje: nombre, zona: zonaActiva.id });
   };
 
   return (
@@ -183,7 +186,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
       style={{
         minHeight: '100vh',
         backgroundColor: temaNeutro.bg,
-        color: tema.text,
+        color: temaNeutro.text,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -264,7 +267,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    <span style={{ fontSize: '1.6rem' }}>{zona.icono}</span>
+                    <i className={`bi bi-${zona.icono}`} style={{ fontSize: '1.6rem', color: t.accent }}></i>
                     <span>{zona.id}</span>
                     <span style={{ marginLeft: 'auto', color: t.border, fontSize: '0.8rem' }}>
                       <i className="bi bi-chevron-right"></i>
@@ -279,7 +282,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
         {paso === 'zona-detalle' && zonaActiva && (
           <div style={{ animation: 'fadeIn 0.4s ease' }}>
             <div className="text-center mb-3">
-              <span style={{ fontSize: '2rem' }}>{zonaActiva.icono}</span>
+              <i className={`bi bi-${zonaActiva.icono}`} style={{ fontSize: '2rem', color: tema.accent }}></i>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', letterSpacing: '1px', color: tema.accent, margin: '0.4rem 0 0' }}>
                 {zonaActiva.id}
               </p>
@@ -370,7 +373,24 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                 {errorGuardado}
               </p>
             )}
-            <div className="text-center mt-4">
+            <div className="d-flex gap-2 justify-content-center mt-4">
+              <button
+                onClick={rechazarZona}
+                disabled={guardando}
+                className="btn"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '0.7rem',
+                  padding: '0.7rem 1.2rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${temaNeutro.text}`,
+                  color: temaNeutro.text,
+                  letterSpacing: '1px',
+                  opacity: guardando ? 0.6 : 1,
+                }}
+              >
+                Cambiar de zona
+              </button>
               <button
                 onClick={enviarNombre}
                 disabled={guardando}
@@ -395,13 +415,30 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
 
         {paso === 'completado' && zonaActiva && (
           <div style={{ animation: 'fadeIn 0.5s ease', textAlign: 'center' }}>
-            <span style={{ fontSize: '2.2rem' }}>{zonaActiva.icono}</span>
+            <i className={`bi bi-${zonaActiva.icono}`} style={{ fontSize: '2.2rem', color: tema.accent }}></i>
             <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: tema.accent, margin: '0.8rem 0' }}>
               Bienvenido, {nombre}.
             </p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', lineHeight: 1.6 }}>
               Tu destino queda marcado en {zonaActiva.id}. Que el Bastión te sea tan generoso como te lo hayas ganado.
             </p>
+            <div className="mt-4">
+              <button
+                onClick={() => perfilCreado && onCompletado(perfilCreado)}
+                className="btn"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '0.7rem',
+                  padding: '0.7rem 1.2rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${tema.accent}`,
+                  color: tema.accent,
+                  letterSpacing: '1px',
+                }}
+              >
+                Entrar al Bastión
+              </button>
+            </div>
           </div>
         )}
       </div>

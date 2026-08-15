@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Layout } from './Layout';
 import { getTheme } from '../utils/themes';
 import { supabase } from '../services/supabase';
@@ -23,6 +23,7 @@ interface ProfileViewProps {
 }
 
 const xpBaseNivel = (nivel: number): number => {
+  if (nivel <= 1) return 0;
   return Math.floor(20 * Math.pow(nivel, 1.8));
 };
 
