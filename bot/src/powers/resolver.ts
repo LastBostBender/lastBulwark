@@ -103,14 +103,25 @@ export interface ContextoTurno {
 /**
  * Calcula el delta absoluto de UN efecto, dado quién lo usa y contra quién.
  * No aplica nada por sí mismo — es una función pura.
+ *
+ * `aliado` es opcional: solo requerido cuando el efecto tiene target
+ * 'aliado_objetivo' o 'aliado_aleatorio' (ej. Cauterizar aplicado a otro
+ * jugador). Si no se provee, esos targets caen de vuelta a `usuario` para
+ * no romper compatibilidad mientras el loop de mazmorra no exista.
  */
 export function resolverEfecto(
   efecto: EfectoPoder,
   usuario: Combatiente,
   objetivo: Combatiente,
-  contexto: ContextoTurno = {}
+  contexto: ContextoTurno = {},
+  aliado?: Combatiente
 ): DeltaAplicado {
-  const base = efecto.target === 'enemigo' ? objetivo : usuario;
+  const base =
+    efecto.target === 'enemigo'
+      ? objetivo
+      : efecto.target === 'aliado_objetivo' || efecto.target === 'aliado_aleatorio'
+        ? (aliado ?? usuario)
+        : usuario;
   const statResuelto = efecto.stat === 'aleatorio' ? elegirStatAleatorio(efecto.excluir_stats) : efecto.stat;
 
   switch (efecto.unidad) {
@@ -210,7 +221,8 @@ export function resolverPoder(
   usuario: Combatiente,
   objetivo: Combatiente,
   trigger: EfectoPoder['trigger'] = 'on_use',
-  contexto: ContextoTurno = {}
+  contexto: ContextoTurno = {},
+  aliado?: Combatiente
 ): DeltaAplicado[] {
   return (parametros.efectos ?? [])
     .filter((e) => e.trigger === trigger)
@@ -220,5 +232,5 @@ export function resolverPoder(
       }
       return true;
     })
-    .map((efecto) => resolverEfecto(efecto, usuario, objetivo, contexto));
+    .map((efecto) => resolverEfecto(efecto, usuario, objetivo, contexto, aliado));
 }
