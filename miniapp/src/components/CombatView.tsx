@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { getTheme } from '../utils/themes';
-import { CombatShell } from './CombatShell';
 
 interface CombatViewProps {
   perfil: {
@@ -9,83 +8,446 @@ interface CombatViewProps {
     estado: string;
     sesion_combate_id: number | null;
     zona: string;
+    nombre_personaje: string;
   };
-  onProfileChange: (perfil: any) => void;
+  onProfileChange?: (perfil: any) => void;
 }
 
-interface ColaInfo {
-  encounterId: number;
-  nivelJefe: number;
+interface Sesion {
+  id: number;
+  estado: 'en_curso' | 'victoria' | 'derrota' | 'cancelado';
+  turno_actual: number;
+  ronda: number;
+  oleada_actual: number;
+  oleadas: Array<{ numero: number; enemigos?: number; jefe?: boolean }>;
 }
 
-// Cupo de la cola: hardcodeado en mb_unirse_cola (v_count >= 5). Si cambia ahí, actualizar acá.
-const CUPO_COLA = 5;
+interface Combatiente {
+  id: number;
+  orden: number | null;
+  tipo: 'jugador' | 'enemigo';
+  telegram_id: number | null;
+  nombre: string;
+  nivel: number;
+  vivo: boolean;
+  ps_actual: number;
+  ps_max: number;
+  pm_actual: number;
+  pm_max: number;
+  escape: number;
+}
+
+interface LogEntry {
+  id: number;
+  turno: number;
+  descripcion: string;
+  creado_en: string;
+}
+
+interface Poder {
+  id: number;
+  nombre: string;
+  icono: string;
+  parametros: { efectos: Array<{ trigger: string; target: string }> };
+}
+
+type Categoria = 'enemigo' | 'aliado' | 'area_enemigos' | 'area_aliados' | 'area_todos' | null;
+
+function categoriaObjetivo(poder: Poder): Categoria {
+  const onUse = (poder.parametros?.efectos ?? []).filter((e) => e.trigger === 'on_use');
+  const targets = new Set(onUse.map((e) => e.target));
+  if (targets.has('todos_en_combate')) return 'area_todos';
+  if (targets.has('todos_enemigos')) return 'area_enemigos';
+  if (targets.has('todos_aliados')) return 'area_aliados';
+  if (targets.has('enemigo')) return 'enemigo';
+  if (targets.has('aliado_objetivo')) return 'aliado';
+  return null; // self / aliado_aleatorio: no requiere selección
+}
+
+const MiniBarra = ({ actual, max, color }: { actual: number; max: number; color: string }) => (
+  <div className="progress-custom" style={{ height: '4px' }}>
+    <div
+      className="bar"
+      style={{ width: `${max > 0 ? Math.max(0, Math.min(100, (actual / max) * 100)) : 0}%`, backgroundColor: color }}
+    />
+  </div>
+);
 
 export const CombatView = ({ perfil }: CombatViewProps) => {
   const theme = getTheme(perfil.zona);
-  const [colaInfo, setColaInfo] = useState<ColaInfo | null>(null);
-  const [participantes, setParticipantes] = useState(0);
-  const [cargando, setCargando] = useState(true);
+  const sesionId = perfil.sesion_combate_id;
 
+  // --- Estado: en_cola ---
+  const [colaEncounterId, setColaEncounterId] = useState<number | null>(null);
+  const [colaNivelJefe, setColaNivelJefe] = useState<number | null>(null);
+  const [colaCount, setColaCount] = useState(0);
+
+  // --- Estado: en_combate ---
+  const [sesion, setSesion] = useState<Sesion | null>(null);
+  const [combatientes, setCombatientes] = useState<Combatiente[]>([]);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [poderes, setPoderes] = useState<Poder[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [poderSeleccionado, setPoderSeleccionado] = useState<Poder | null>(null);
+  const [accionArma, setAccionArma] = useState(false); // true = eligiendo objetivo para "golpe con arma"
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // Cargar cola (mientras estado === 'en_cola')
   useEffect(() => {
     if (perfil.estado !== 'en_cola') return;
     let activo = true;
 
-    const cargarCola = async () => {
-      setCargando(true);
-      const { data: fila } = await supabase
+    const cargar = async () => {
+      const { data: colaRow } = await supabase
         .from('mini_boss_queue')
-        .select('encounter_id')
+        .select('encounter_id, mini_boss_encounters(nivel_jefe)')
         .eq('telegram_id', perfil.telegram_id)
-        .single();
-      if (!fila || !activo) return;
+        .maybeSingle();
+      if (!activo || !colaRow) return;
 
-      const [{ data: encuentro }, { count }] = await Promise.all([
-        supabase.from('mini_boss_encounters').select('nivel_jefe').eq('id', fila.encounter_id).single(),
-        supabase.from('mini_boss_queue').select('telegram_id', { count: 'exact', head: true }).eq('encounter_id', fila.encounter_id),
-      ]);
-      if (!activo) return;
-      setColaInfo({ encounterId: fila.encounter_id, nivelJefe: encuentro?.nivel_jefe ?? 1 });
-      setParticipantes(count ?? 0);
-      setCargando(false);
+      const encId = colaRow.encounter_id as number;
+      const encuentro = colaRow.mini_boss_encounters as unknown as { nivel_jefe: number } | null;
+      setColaEncounterId(encId);
+      setColaNivelJefe(encuentro?.nivel_jefe ?? null);
+
+      const { count } = await supabase
+        .from('mini_boss_queue')
+        .select('*', { count: 'exact', head: true })
+        .eq('encounter_id', encId);
+      if (activo) setColaCount(count ?? 0);
     };
-    cargarCola();
-
+    cargar();
     return () => { activo = false; };
   }, [perfil.estado, perfil.telegram_id]);
 
-  // Contador en vivo: suma 1 por cada nuevo INSERT en la cola, sin volver a pedir toda la fila.
   useEffect(() => {
-    if (!colaInfo) return;
+    if (!colaEncounterId) return;
     const canal = supabase
-      .channel(`cola-${colaInfo.encounterId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mini_boss_queue', filter: `encounter_id=eq.${colaInfo.encounterId}` },
-        () => setParticipantes((prev) => prev + 1)
-      )
+      .channel(`cola-${colaEncounterId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mini_boss_queue', filter: `encounter_id=eq.${colaEncounterId}` },
+        () => setColaCount((c) => c + 1))
       .subscribe();
     return () => { supabase.removeChannel(canal); };
-  }, [colaInfo?.encounterId]);
+  }, [colaEncounterId]);
 
-  if (perfil.estado === 'en_combate') {
-    return <CombatShell perfil={perfil} />;
+  // Cargar combate (mientras estado === 'en_combate')
+  useEffect(() => {
+    if (!sesionId) return;
+    let activo = true;
+
+    const cargar = async () => {
+      setCargando(true);
+      const [sesionRes, combatientesRes, logRes, poderesRes] = await Promise.all([
+        supabase.from('combat_sesiones').select('id, estado, turno_actual, ronda, oleada_actual, oleadas').eq('id', sesionId).single(),
+        supabase.from('combat_combatientes').select('*').eq('sesion_id', sesionId).order('orden'),
+        supabase.from('combat_log').select('*').eq('sesion_id', sesionId).order('creado_en', { ascending: true }).limit(50),
+        supabase.from('character_powers').select('powers(id, nombre, icono, parametros, tipo)').eq('telegram_id', perfil.telegram_id),
+      ]);
+      if (!activo) return;
+      if (sesionRes.data) setSesion(sesionRes.data as Sesion);
+      if (combatientesRes.data) setCombatientes(combatientesRes.data as Combatiente[]);
+      if (logRes.data) setLog(logRes.data as LogEntry[]);
+      if (poderesRes.data) {
+        const activos = poderesRes.data
+          .map((row: any) => row.powers)
+          .filter((p: any) => p && p.tipo === 'activo');
+        setPoderes(activos as Poder[]);
+      }
+      setCargando(false);
+    };
+    cargar();
+    return () => { activo = false; };
+  }, [sesionId, perfil.telegram_id]);
+
+  useEffect(() => {
+    if (!sesionId) return;
+    const canal = supabase
+      .channel(`combate-${sesionId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'combat_sesiones', filter: `id=eq.${sesionId}` },
+        (payload) => setSesion((prev) => (prev ? { ...prev, ...payload.new } : (payload.new as Sesion))))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'combat_combatientes', filter: `sesion_id=eq.${sesionId}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') return;
+          const nuevo = payload.new as Combatiente;
+          setCombatientes((prev) => {
+            const existe = prev.some((c) => c.id === nuevo.id);
+            return existe
+              ? prev.map((c) => (c.id === nuevo.id ? { ...c, ...nuevo } : c))
+              : [...prev, nuevo].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+          });
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'combat_log', filter: `sesion_id=eq.${sesionId}` },
+        (payload) => setLog((prev) => [...prev, payload.new as LogEntry]))
+      .subscribe();
+    return () => { supabase.removeChannel(canal); };
+  }, [sesionId]);
+
+  // Cuando llega mi turno o entra una acción nueva, siempre vuelvo a la botonera de poderes
+  useEffect(() => {
+    setPoderSeleccionado(null);
+    setAccionArma(false);
+  }, [sesion?.turno_actual, sesion?.ronda]);
+
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
+  }, [log]);
+
+  if (!sesionId && perfil.estado !== 'en_cola') return null;
+
+  const miCombatiente = combatientes.find((c) => c.telegram_id === perfil.telegram_id);
+  const esMiTurno = !!sesion && !!miCombatiente && miCombatiente.orden === sesion.turno_actual && sesion.estado === 'en_curso';
+
+  const ejecutar = async (accion: 'poder' | 'golpe' | 'huir', poderId?: number, objetivoId?: number) => {
+    if (!sesionId || enviando) return;
+    setEnviando(true);
+    const { data, error } = await supabase.rpc('combat_ejecutar_accion', {
+      p_sesion_id: sesionId,
+      p_telegram_id: perfil.telegram_id,
+      p_accion: accion,
+      p_power_id: poderId ?? null,
+      p_objetivo_id: objetivoId ?? null,
+    });
+    setEnviando(false);
+    if (error || !data?.ok) {
+      console.error('Error ejecutando acción:', error || data);
+      return;
+    }
+    setPoderSeleccionado(null);
+    setAccionArma(false);
+  };
+
+  const tocarPoder = (poder: Poder) => {
+    const cat = categoriaObjetivo(poder);
+    if (cat === null) {
+      ejecutar('poder', poder.id); // self / aliado_aleatorio: sin selección
+    } else if (cat === 'area_enemigos' || cat === 'area_aliados' || cat === 'area_todos') {
+      setPoderSeleccionado(poder); // sigue mostrando botonera de objetivos, pero con [Todos]
+    } else {
+      setPoderSeleccionado(poder);
+    }
+  };
+
+  // --- Render: en_cola ---
+  if (perfil.estado === 'en_cola' && !sesionId) {
+    return (
+      <div className="d-flex flex-column vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
+        <header className="py-3 px-3 text-center" style={{ backgroundColor: theme.headerBg, borderBottom: `1px solid ${theme.border}` }}>
+          <span className="fw-bold">{perfil.nombre_personaje}</span>
+        </header>
+        <main className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center px-3">
+          <i className="bi bi-exclamation-diamond-fill" style={{ fontSize: '3rem', color: theme.accent }}></i>
+          <h4 className="mt-3">{colaNivelJefe ? `Mini jefe de nivel ${colaNivelJefe}` : 'Buscando encuentro...'}</h4>
+          <p className="fs-4" style={{ color: theme.accent }}>{colaCount}/5</p>
+        </main>
+        <footer className="d-flex align-items-center justify-content-center gap-2" style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '70px' }}>
+          <i className="bi bi-arrow-repeat spin-icon fs-4" style={{ color: theme.accent }}></i>
+          <span>Esperando otros...</span>
+        </footer>
+      </div>
+    );
   }
 
+  // --- Render: en_combate ---
+  if (cargando || !sesion) {
+    return (
+      <div className="d-flex align-items-center justify-content-center vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
+        <div className="spinner-border" role="status" />
+      </div>
+    );
+  }
+
+  const vivos = combatientes.filter((c) => c.vivo).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+
+  const combateTerminado = sesion.estado !== 'en_curso';
+
+  // Objetivos válidos según lo que pide el poder/arma seleccionados
+  const accionActiva: { tipo: 'poder' | 'golpe'; poder?: Poder } | null = accionArma
+    ? { tipo: 'golpe' }
+    : poderSeleccionado
+      ? { tipo: 'poder', poder: poderSeleccionado }
+      : null;
+
+  const categoria: Categoria = accionActiva?.tipo === 'golpe' ? 'enemigo' : accionActiva?.poder ? categoriaObjetivo(accionActiva.poder) : null;
+
+  const objetivosPosibles =
+    categoria === 'enemigo' || categoria === 'area_enemigos'
+      ? combatientes.filter((c) => c.tipo === 'enemigo' && c.vivo)
+      : categoria === 'aliado' || categoria === 'area_aliados'
+        ? combatientes.filter((c) => c.tipo === 'jugador' && c.vivo)
+        : categoria === 'area_todos'
+          ? combatientes.filter((c) => c.vivo)
+          : [];
+
+  const esArea = categoria === 'area_enemigos' || categoria === 'area_aliados' || categoria === 'area_todos';
+
+  const seleccionarObjetivo = (objetivoId: number) => {
+    if (!accionActiva) return;
+    if (accionActiva.tipo === 'golpe') ejecutar('golpe', undefined, objetivoId);
+    else ejecutar('poder', accionActiva.poder!.id, objetivoId);
+  };
+
+  const usarArea = () => {
+    if (!accionActiva?.poder) return;
+    // El backend resuelve "todos" solo, no necesita un id de objetivo puntual.
+    ejecutar('poder', accionActiva.poder.id);
+  };
+
   return (
-    <div className="container mt-5 text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>
-      <h4 style={{ fontFamily: 'var(--font-title)' }}>Encuentro contra mini-jefe</h4>
-      {cargando || !colaInfo ? (
-        <p className="mt-3 text-secondary">Uniéndote a la cola...</p>
-      ) : (
-        <>
-          <p className="mt-3">Nivel del jefe: {colaInfo.nivelJefe}</p>
-          <p style={{ fontFamily: 'var(--font-title)', fontSize: '1.8rem' }}>
-            {participantes}/{CUPO_COLA}
-          </p>
-          <p className="text-secondary">Esperando a que se complete el grupo...</p>
-        </>
-      )}
+    <div className="d-flex flex-column vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
+      {/* Encabezado: ronda + bolitas de turno */}
+      <header className="py-2 px-2" style={{ backgroundColor: theme.headerBg, borderBottom: `1px solid ${theme.border}` }}>
+        <div className="d-flex align-items-center" style={{ gap: '0.6rem' }}>
+          <span
+            className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+            style={{ width: '34px', height: '34px', border: `2px solid ${theme.border}`, fontWeight: 'bold' }}
+          >
+            {sesion.ronda}
+          </span>
+          <div className="d-flex flex-grow-1" style={{ gap: '0.35rem', overflowX: 'auto', paddingBottom: '2px' }}>
+            {vivos.map((c) => {
+              const esTurno = c.orden === sesion.turno_actual;
+              const yaJugo = (c.orden ?? 0) < sesion.turno_actual;
+              const fill = esTurno ? '#4caf50' : yaJugo ? '#c0392b' : '#f0c419';
+              const borde = c.tipo === 'jugador' ? '#4caf50' : '#c0392b';
+              return (
+                <span
+                  key={c.id}
+                  title={c.nombre}
+                  className="rounded-circle flex-shrink-0 position-relative"
+                  style={{ width: '24px', height: '24px', backgroundColor: fill, border: `2px solid ${borde}` }}
+                >
+                  {esTurno && (
+                    <i
+                      className="bi bi-flag-fill position-absolute"
+                      style={{ fontSize: '0.6rem', top: '-6px', right: '-4px', color: theme.accent }}
+                    />
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-grow-1 d-flex overflow-hidden">
+        {/* Lateral: gauges PS/PM propios */}
+        <div className="d-flex flex-shrink-0" style={{ width: '28px', gap: '4px', padding: '10px 6px' }}>
+          {miCombatiente && (
+            <>
+              <div className="d-flex align-items-end" style={{ width: '8px', height: '100%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', backgroundColor: '#c0392b', height: `${miCombatiente.ps_max > 0 ? (miCombatiente.ps_actual / miCombatiente.ps_max) * 100 : 0}%`, transition: 'height 0.3s ease' }} />
+              </div>
+              <div className="d-flex align-items-end" style={{ width: '8px', height: '100%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', backgroundColor: '#2980b9', height: `${miCombatiente.pm_max > 0 ? (miCombatiente.pm_actual / miCombatiente.pm_max) * 100 : 0}%`, transition: 'height 0.3s ease' }} />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Centro: log */}
+        <div ref={logRef} className="flex-grow-1 overflow-auto px-2 py-2" style={{ fontSize: '0.9rem' }}>
+          {log.length === 0 && <p className="text-secondary text-center mt-4">El combate está por comenzar...</p>}
+          {log.map((entrada) => (
+            <p key={entrada.id} className="mb-1">
+              <span className="text-secondary">R{entrada.turno}</span> — {entrada.descripcion}
+            </p>
+          ))}
+          {combateTerminado && (
+            <h4 className="text-center mt-3">
+              {sesion.estado === 'victoria' ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado'}
+            </h4>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '150px', padding: '8px' }}>
+        {combateTerminado ? (
+          <div className="text-center py-3">Volviendo al perfil...</div>
+        ) : !esMiTurno ? (
+          <div className="d-flex align-items-center justify-content-center h-100 gap-2 py-4">
+            <span className="text-secondary">Turno de {vivos.find((c) => c.orden === sesion.turno_actual)?.nombre ?? '...'}</span>
+          </div>
+        ) : accionActiva ? (
+          // --- Selección de objetivo ---
+          <div>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="small text-secondary">Elige objetivo</span>
+              <button className="btn btn-sm btn-outline-light" onClick={() => { setPoderSeleccionado(null); setAccionArma(false); }}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            {esArea ? (
+              <button className="btn btn-outline-light w-100 py-3" disabled={enviando} onClick={usarArea}>
+                Todos
+              </button>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {objetivosPosibles.slice(0, 4).map((obj) => (
+                  <button
+                    key={obj.id}
+                    disabled={enviando}
+                    onClick={() => seleccionarObjetivo(obj.id)}
+                    className="btn btn-outline-light text-start p-2"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    <div>{obj.nombre}</div>
+                    <MiniBarra actual={obj.ps_actual} max={obj.ps_max} color="#c0392b" />
+                    <MiniBarra actual={obj.pm_actual} max={obj.pm_max} color="#2980b9" />
+                  </button>
+                ))}
+                {objetivosPosibles.length > 4 && (
+                  <button
+                    disabled={enviando}
+                    onClick={() => seleccionarObjetivo(objetivosPosibles[4].id)}
+                    className="btn btn-outline-light text-start p-2"
+                    style={{ gridColumn: '1 / -1', fontSize: '0.85rem' }}
+                  >
+                    <div>{objetivosPosibles[4].nombre}</div>
+                    <MiniBarra actual={objetivosPosibles[4].ps_actual} max={objetivosPosibles[4].ps_max} color="#c0392b" />
+                    <MiniBarra actual={objetivosPosibles[4].pm_actual} max={objetivosPosibles[4].pm_max} color="#2980b9" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          // --- Selección de poder / arma / inventario / huir ---
+          <div className="d-flex h-100" style={{ gap: '8px' }}>
+            <div
+              className="flex-grow-1"
+              style={{
+                display: 'grid',
+                gap: '6px',
+                gridTemplateColumns: poderes.length === 3 ? '1fr' : poderes.length <= 1 ? '1fr' : '1fr 1fr',
+                gridTemplateRows: poderes.length === 3 ? '1fr 1fr 1fr' : poderes.length <= 2 ? '1fr' : '1fr 1fr',
+              }}
+            >
+              {poderes.length === 0 && (
+                <div className="d-flex align-items-center justify-content-center text-secondary small">Sin poderes activos</div>
+              )}
+              {poderes.map((poder) => (
+                <button key={poder.id} disabled={enviando} onClick={() => tocarPoder(poder)} className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center">
+                  <i className={`bi bi-${poder.icono ?? 'stars'} fs-5`}></i>
+                  <span style={{ fontSize: '0.7rem' }}>{poder.nombre}</span>
+                </button>
+              ))}
+            </div>
+            <div className="d-flex flex-column" style={{ gap: '6px', width: '70px' }}>
+              <button disabled={enviando} onClick={() => setAccionArma(true)} className="btn btn-outline-light flex-grow-1">
+                <i className="bi bi-sword"></i>
+              </button>
+              <button disabled={enviando} onClick={() => alert('Inventario aún no disponible.')} className="btn btn-outline-light flex-grow-1">
+                <i className="bi bi-bag"></i>
+              </button>
+              <button disabled={enviando} onClick={() => ejecutar('huir')} className="btn btn-outline-light flex-grow-1">
+                <i className="bi bi-door-open"></i>
+              </button>
+            </div>
+          </div>
+        )}
+      </footer>
     </div>
   );
 };
