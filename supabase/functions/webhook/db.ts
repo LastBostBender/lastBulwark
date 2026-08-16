@@ -87,6 +87,17 @@ export async function unirseCola(encounterId: number, telegramId: number): Promi
   return res.json();
 }
 
+export async function resolverCombatesFinalizados(): Promise<any[]> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/mb_resolver_combates_finalizados`;
+  const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
+  if (!res.ok) {
+    console.error("Error resolviendo combates finalizados:", await res.text());
+    return [];
+  }
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((row: any) => row?.mb_resolver_combates_finalizados ?? row);
+}
+
 export async function actualizarMensajeEncuentro(encounterId: number, mensajeId: number) {
   const url = `${SUPABASE_URL}/rest/v1/mini_boss_encounters?id=eq.${encounterId}`;
   const res = await fetch(url, {

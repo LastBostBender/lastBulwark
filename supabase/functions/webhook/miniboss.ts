@@ -1,5 +1,5 @@
 import { sendMessage, answerCallbackQuery } from "./telegram.ts";
-import { generarEncuentros, cerrarColasVencidas, unirseCola, actualizarMensajeEncuentro } from "./db.ts";
+import { generarEncuentros, cerrarColasVencidas, unirseCola, actualizarMensajeEncuentro, resolverCombatesFinalizados } from "./db.ts";
 
 function mensajeSpawn(nivelJefe: number, encounterId: number) {
   return {
@@ -26,9 +26,29 @@ function mensajeResultado(resultado: any): string {
     return `⚔️ ¡Cola completa! El combate contra el mini jefe de nivel ${nivelJefe} ha comenzado.`;
   }
 
-  // Legacy: pendiente de reconexión cuando el resultado real del combate por
-  // turnos (victoria/derrota, con XP) se cablee desde el frontend/CombatView.
   return `El encuentro contra el mini jefe de nivel ${nivelJefe} terminó (${estado}).`;
+}
+
+function mensajeResultadoCombate(resultado: any): string {
+  const nivelJefe = resultado?.nivel_jefe;
+  const participantes = (resultado?.participantes ?? []) as Array<{
+    nombre: string; xp_added?: number; leveled_up?: boolean; new_level?: number;
+  }>;
+
+  if (resultado?.estado === "derrota") {
+    return `💀 Derrota contra el mini jefe de nivel ${nivelJefe}. El grupo cayó: ${
+      participantes.map((p) => p.nombre).join(", ") || "nadie sobrevivió para contarlo"
+    }.`;
+  }
+
+  const detalleXp = participantes
+    .map((p) => {
+      const subio = p.leveled_up ? ` (¡sube a nivel ${p.new_level}!)` : "";
+      return `${p.nombre} +${p.xp_added ?? 0} XP${subio}`;
+    })
+    .join(" · ");
+
+  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n${detalleXp}`;
 }
 
 export async function handleCronTick() {
@@ -45,6 +65,13 @@ export async function handleCronTick() {
   for (const resultado of resueltos) {
     if (resultado?.chat_id) {
       await sendMessage(resultado.chat_id, mensajeResultado(resultado));
+    }
+  }
+
+  const combatesFinalizados = await resolverCombatesFinalizados();
+  for (const resultado of combatesFinalizados) {
+    if (resultado?.chat_id) {
+      await sendMessage(resultado.chat_id, mensajeResultadoCombate(resultado));
     }
   }
 }
