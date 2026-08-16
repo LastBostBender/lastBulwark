@@ -9,26 +9,49 @@ import TelegramWebApp from '@twa-dev/sdk';
 
 type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
 
+const TIMEOUT_MS = 10000;
+
 export const Profile = () => {
   const [perfil, setPerfil] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [registro, setRegistro] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('perfil');
+  const [intento, setIntento] = useState(0);
 
   // Obtener ID real de Telegram
   const user = TelegramWebApp.initDataUnsafe?.user;
   const TELEGRAM_ID = user?.id ?? 123456;
 
+  // Sin esto, varios clientes de Telegram (sobre todo Desktop y algunas
+  // versiones de Android) mantienen su propio overlay de carga nativo
+  // encima de la app, o no terminan de asentar el WebView.
   useEffect(() => {
+    try {
+      TelegramWebApp.ready();
+      TelegramWebApp.expand();
+    } catch (err) {
+      console.error('Error inicializando Telegram WebApp:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
     const cargarPerfil = async () => {
       try {
         setLoading(true);
+        setError(null);
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('telegram_id', TELEGRAM_ID)
+          .abortSignal(controller.signal)
           .single();
+
+        if (!activo) return;
 
         if (error && error.code === 'PGRST116') {
           setRegistro(true);
@@ -37,13 +60,22 @@ export const Profile = () => {
         if (error) throw error;
         setPerfil(data);
       } catch (err: any) {
-        setError(err.message);
+        if (!activo) return;
+        const timedOut = err?.name === 'AbortError';
+        setError(timedOut ? 'La conexión tardó demasiado. Revisa tu señal e intenta de nuevo.' : err.message);
       } finally {
-        setLoading(false);
+        clearTimeout(timeoutId);
+        if (activo) setLoading(false);
       }
     };
     cargarPerfil();
-  }, []);
+
+    return () => {
+      activo = false;
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [intento]);
 
   // El bot (backend de Telegram) puede subir de nivel o modificar el perfil
   // mientras la miniapp está abierta. Sin esto, esos cambios solo se veían
@@ -85,6 +117,11 @@ export const Profile = () => {
       <div className="container mt-5">
         <div className="alert alert-danger" role="alert">
           Error: {error}
+        </div>
+        <div className="text-center">
+          <button className="btn btn-outline-light" onClick={() => setIntento((n) => n + 1)}>
+            Reintentar
+          </button>
         </div>
       </div>
     );

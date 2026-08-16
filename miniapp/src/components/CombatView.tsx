@@ -88,38 +88,56 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [poderes, setPoderes] = useState<Poder[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [poderSeleccionado, setPoderSeleccionado] = useState<Poder | null>(null);
   const [accionArma, setAccionArma] = useState(false); // true = eligiendo objetivo para "golpe con arma"
   const logRef = useRef<HTMLDivElement>(null);
 
   // Cargar cola (mientras estado === 'en_cola')
+  const [errorCola, setErrorCola] = useState<string | null>(null);
+  const [intentoCola, setIntentoCola] = useState(0);
   useEffect(() => {
     if (perfil.estado !== 'en_cola') return;
     let activo = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const cargar = async () => {
-      const { data: colaRow } = await supabase
-        .from('mini_boss_queue')
-        .select('encounter_id, mini_boss_encounters(nivel_jefe)')
-        .eq('telegram_id', perfil.telegram_id)
-        .maybeSingle();
-      if (!activo || !colaRow) return;
+      setErrorCola(null);
+      try {
+        const { data: colaRow, error } = await supabase
+          .from('mini_boss_queue')
+          .select('encounter_id, mini_boss_encounters(nivel_jefe)')
+          .eq('telegram_id', perfil.telegram_id)
+          .abortSignal(controller.signal)
+          .maybeSingle();
+        if (!activo) return;
+        if (error) throw error;
+        if (!colaRow) return;
 
-      const encId = colaRow.encounter_id as number;
-      const encuentro = colaRow.mini_boss_encounters as unknown as { nivel_jefe: number } | null;
-      setColaEncounterId(encId);
-      setColaNivelJefe(encuentro?.nivel_jefe ?? null);
+        const encId = colaRow.encounter_id as number;
+        const encuentro = colaRow.mini_boss_encounters as unknown as { nivel_jefe: number } | null;
+        setColaEncounterId(encId);
+        setColaNivelJefe(encuentro?.nivel_jefe ?? null);
 
-      const { count } = await supabase
-        .from('mini_boss_queue')
-        .select('*', { count: 'exact', head: true })
-        .eq('encounter_id', encId);
-      if (activo) setColaCount(count ?? 0);
+        const { count } = await supabase
+          .from('mini_boss_queue')
+          .select('*', { count: 'exact', head: true })
+          .eq('encounter_id', encId)
+          .abortSignal(controller.signal);
+        if (activo) setColaCount(count ?? 0);
+      } catch (err: any) {
+        if (!activo) return;
+        const timedOut = err?.name === 'AbortError';
+        setErrorCola(timedOut ? 'La conexión tardó demasiado. Revisa tu señal e intenta de nuevo.' : err.message);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     };
     cargar();
-    return () => { activo = false; };
-  }, [perfil.estado, perfil.telegram_id]);
+    return () => { activo = false; controller.abort(); clearTimeout(timeoutId); };
+  }, [perfil.estado, perfil.telegram_id, intentoCola]);
 
   useEffect(() => {
     if (!colaEncounterId) return;
@@ -132,33 +150,49 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   }, [colaEncounterId]);
 
   // Cargar combate (mientras estado === 'en_combate')
+  const [intentoCombate, setIntentoCombate] = useState(0);
   useEffect(() => {
     if (!sesionId) return;
     let activo = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const cargar = async () => {
       setCargando(true);
-      const [sesionRes, combatientesRes, logRes, poderesRes] = await Promise.all([
-        supabase.from('combat_sesiones').select('id, estado, turno_actual, ronda, oleada_actual, oleadas').eq('id', sesionId).single(),
-        supabase.from('combat_combatientes').select('*').eq('sesion_id', sesionId).order('orden'),
-        supabase.from('combat_log').select('*').eq('sesion_id', sesionId).order('creado_en', { ascending: true }).limit(50),
-        supabase.from('character_powers').select('powers(id, nombre, icono, parametros, tipo)').eq('telegram_id', perfil.telegram_id),
-      ]);
-      if (!activo) return;
-      if (sesionRes.data) setSesion(sesionRes.data as Sesion);
-      if (combatientesRes.data) setCombatientes(combatientesRes.data as Combatiente[]);
-      if (logRes.data) setLog(logRes.data as LogEntry[]);
-      if (poderesRes.data) {
-        const activos = poderesRes.data
-          .map((row: any) => row.powers)
-          .filter((p: any) => p && p.tipo === 'activo');
-        setPoderes(activos as Poder[]);
+      setErrorCarga(null);
+      try {
+        const [sesionRes, combatientesRes, logRes, poderesRes] = await Promise.all([
+          supabase.from('combat_sesiones').select('id, estado, turno_actual, ronda, oleada_actual, oleadas').eq('id', sesionId).abortSignal(controller.signal).single(),
+          supabase.from('combat_combatientes').select('*').eq('sesion_id', sesionId).order('orden').abortSignal(controller.signal),
+          supabase.from('combat_log').select('*').eq('sesion_id', sesionId).order('creado_en', { ascending: true }).limit(50).abortSignal(controller.signal),
+          supabase.from('character_powers').select('powers(id, nombre, icono, parametros, tipo)').eq('telegram_id', perfil.telegram_id).abortSignal(controller.signal),
+        ]);
+        if (!activo) return;
+
+        if (sesionRes.error || !sesionRes.data) {
+          throw new Error('No se encontró la sesión de combate. Puede que ya haya terminado.');
+        }
+        setSesion(sesionRes.data as Sesion);
+        if (combatientesRes.data) setCombatientes(combatientesRes.data as Combatiente[]);
+        if (logRes.data) setLog(logRes.data as LogEntry[]);
+        if (poderesRes.data) {
+          const activos = poderesRes.data
+            .map((row: any) => row.powers)
+            .filter((p: any) => p && p.tipo === 'activo');
+          setPoderes(activos as Poder[]);
+        }
+      } catch (err: any) {
+        if (!activo) return;
+        const timedOut = err?.name === 'AbortError';
+        setErrorCarga(timedOut ? 'La conexión tardó demasiado. Revisa tu señal e intenta de nuevo.' : err.message);
+      } finally {
+        clearTimeout(timeoutId);
+        if (activo) setCargando(false);
       }
-      setCargando(false);
     };
     cargar();
-    return () => { activo = false; };
-  }, [sesionId, perfil.telegram_id]);
+    return () => { activo = false; controller.abort(); clearTimeout(timeoutId); };
+  }, [sesionId, perfil.telegram_id, intentoCombate]);
 
   useEffect(() => {
     if (!sesionId) return;
@@ -236,9 +270,20 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           <span className="fw-bold">{perfil.nombre_personaje}</span>
         </header>
         <main className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center px-3">
-          <i className="bi bi-exclamation-diamond-fill" style={{ fontSize: '3rem', color: theme.accent }}></i>
-          <h4 className="mt-3">{colaNivelJefe ? `Mini jefe de nivel ${colaNivelJefe}` : 'Buscando encuentro...'}</h4>
-          <p className="fs-4" style={{ color: theme.accent }}>{colaCount}/5</p>
+          {errorCola ? (
+            <>
+              <p className="mb-3">{errorCola}</p>
+              <button className="btn btn-outline-light" onClick={() => setIntentoCola((n) => n + 1)}>
+                Reintentar
+              </button>
+            </>
+          ) : (
+            <>
+              <i className="bi bi-exclamation-diamond-fill" style={{ fontSize: '3rem', color: theme.accent }}></i>
+              <h4 className="mt-3">{colaNivelJefe ? `Mini jefe de nivel ${colaNivelJefe}` : 'Buscando encuentro...'}</h4>
+              <p className="fs-4" style={{ color: theme.accent }}>{colaCount}/5</p>
+            </>
+          )}
         </main>
         <footer className="d-flex align-items-center justify-content-center gap-2" style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '70px' }}>
           <i className="bi bi-arrow-repeat spin-icon fs-4" style={{ color: theme.accent }}></i>
@@ -249,6 +294,17 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   }
 
   // --- Render: en_combate ---
+  if (errorCarga) {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center vh-100 text-center px-3" style={{ backgroundColor: theme.bg, color: theme.text }}>
+        <p className="mb-3">{errorCarga}</p>
+        <button className="btn btn-outline-light" onClick={() => setIntentoCombate((n) => n + 1)}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   if (cargando || !sesion) {
     return (
       <div className="d-flex align-items-center justify-content-center vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
