@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { OnboardingFlow as Registro } from '../components/Registro';
 import { ProfileView } from '../components/ProfileView';
 import { PoderesView } from '../components/PoderesView';
+import { CombatView } from '../components/CombatView';
 import { Layout } from '../components/Layout';
 import TelegramWebApp from '@twa-dev/sdk';
 
@@ -91,6 +92,13 @@ export const Profile = () => {
 
   if (registro) {
     return <Registro telegramId={TELEGRAM_ID} onCompletado={handleRegistroCompletado} />;
+  }
+
+  // El bloqueo de combate tiene prioridad sobre la navegación por tabs:
+  // si el bot cambió perfil.estado a 'en_cola' o 'en_combate' (vía Realtime,
+  // arriba), no importa en qué vista estabas.
+  if (perfil.estado === 'en_cola' || perfil.estado === 'en_combate') {
+    return <CombatView perfil={perfil} onProfileChange={setPerfil} />;
   }
 
   if (vista === 'poderes') {
