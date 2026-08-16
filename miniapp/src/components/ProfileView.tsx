@@ -37,11 +37,11 @@ interface ProfileViewProps {
 
 const xpBaseNivel = (nivel: number): number => {
   if (nivel <= 1) return 0;
-  return Math.floor(20 * Math.pow(nivel, 1.8));
+  return Math.floor(20 * Math.pow(nivel - 1, 1.8));
 };
 
 const xpNecesaria = (nivel: number): number => {
-  return Math.floor(20 * Math.pow(nivel + 1, 1.8));
+  return Math.floor(20 * Math.pow(nivel, 1.8));
 };
 
 
