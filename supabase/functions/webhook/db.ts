@@ -51,3 +51,50 @@ export async function registrarActividadGrupo(telegramId: number, chatId: number
     console.error("Error registrando actividad de grupo:", await res.text());
   }
 }
+
+export async function generarEncuentros(): Promise<Array<{ encounter_id: number; chat_id: number; nivel_jefe: number }>> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/mb_generar_encuentros`;
+  const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
+  if (!res.ok) {
+    console.error("Error generando encuentros:", await res.text());
+    return [];
+  }
+  return res.json();
+}
+
+export async function cerrarColasVencidas(): Promise<any[]> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/mb_cerrar_colas_vencidas`;
+  const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
+  if (!res.ok) {
+    console.error("Error cerrando colas:", await res.text());
+    return [];
+  }
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((row: any) => row?.mb_cerrar_colas_vencidas ?? row);
+}
+
+export async function unirseCola(encounterId: number, telegramId: number): Promise<any> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/mb_unirse_cola`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: SB_HEADERS_JSON,
+    body: JSON.stringify({ p_encounter_id: encounterId, p_telegram_id: telegramId }),
+  });
+  if (!res.ok) {
+    console.error("Error uniendo a cola:", await res.text());
+    return { ok: false, motivo: "error_interno" };
+  }
+  return res.json();
+}
+
+export async function actualizarMensajeEncuentro(encounterId: number, mensajeId: number) {
+  const url = `${SUPABASE_URL}/rest/v1/mini_boss_encounters?id=eq.${encounterId}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { ...SB_HEADERS_JSON, Prefer: "return=minimal" },
+    body: JSON.stringify({ mensaje_id: mensajeId }),
+  });
+  if (!res.ok) {
+    console.error("Error guardando mensaje_id:", await res.text());
+  }
+}

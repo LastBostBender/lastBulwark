@@ -1,4 +1,5 @@
 ﻿import { handleStart, handleGroupMessage } from "./handlers.ts";
+import { handleCronTick, handleCallbackQuery } from "./miniboss.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "GET") {
@@ -12,6 +13,16 @@ Deno.serve(async (req) => {
   try {
     const update = await req.json();
     console.log("Update:", update);
+
+    if (update.tipo === "mb_cron_tick") {
+      await handleCronTick();
+      return new Response("OK", { status: 200 });
+    }
+
+    if (update.callback_query) {
+      await handleCallbackQuery(update.callback_query);
+      return new Response("OK", { status: 200 });
+    }
 
     const msg = update.message;
     if (!msg || !msg.text) return new Response("OK", { status: 200 });
