@@ -1,8 +1,8 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { getTheme } from '../utils/themes';
 import { supabase } from '../services/supabase';
 
-type Zona = 'Las calderas' | 'Brote de acero' | 'El alacranero' | 'Última aurora';
+type Zona = 'Núcleo Hustle' | 'Valle Serenidad' | 'GlitchCity' | 'Reino del Ghosting';
 
 interface EfectoPasivo {
   titulo: string;
@@ -21,80 +21,79 @@ interface ZonaInfo {
 
 const ZONAS: ZonaInfo[] = [
   {
-    id: 'Las calderas',
-    icono: 'bucket',
+    id: 'Núcleo Hustle',
+    icono: 'cup-hot-fill',
     narrativa:
-      'El volcán no está muerto. Respira. Y su aliento es una columna de ceniza que tiñe el cielo de plomo durante semanas.\n\n' +
-      'En su ladera, los restos de una civilización que creyó domar el fuego cuelgan como costillas rotas: cadenas de montaje retorcidas, hornos fríos que escupen polvo cuando el viento se cuela por las grietas, raíles que se hunden en la lava solidificada.\n\n' +
-      'El calor no se ha ido. Vive en el suelo, en el aire, en los huesos de los que se quedaron. Cada respiración es un acuerdo con el infierno. Los que sobreviven aprenden a moverse como la lava: lentos, implacables, capaces de fundir cualquier resistencia. Pero el precio es alto. El volcán no da tregua. Desgasta. Consume. Te arranca la vida a sorbos mientras te convence de que eres más fuerte.\n\n' +
-      'En verano, el fuego se vuelve aliado. En invierno, recuerdas que solo eres un inquilino en su casa.',
+      'El ruido de los teclados nunca cesa. Es el himno de una generación que cree que dormir es perder, que el café es un combustible y que las horas extras son medallas de honor. Las pantallas parpadean como ojos de un dios que se olvidó de parpadear.\n\n' +
+      'En sus pasillos cuelgan los restos de los que intentaron domar el tiempo: certificados de productividad enmarcados, agendas donde solo se tachan sueños, tazas con frases como "El éxito no espera" que ya nadie lee porque están demasiado ocupados actualizando su perfil de LinkedIn. El humo del vaper se mezcla con el aroma a ambición barata y a desodorante de última generación que no tapa el olor a desesperación.\n\n' +
+      'El agotamiento no se ha ido. Vive en las ojeras que son más profundas que sus ideas, en las publicaciones de LinkedIn que presumen de jornadas de 14 horas, en la nuca de los que llevan tres días sin dormir porque "el descanso es para los débiles". Los que sobreviven aprenden a moverse como el capital: rápidos, fríos, capaces de liquidar cualquier obstáculo con una presentación bien sincronizada. Pero el precio es alto. El sistema te exprime, te estruja, te convence de que eres imparable mientras desangras tu vida en métricas y KPIs.',
     efectos: [
-      { titulo: 'Hijos del sol', flavor: 'En verano, notas que tus ataques hieren más.' },
-      { titulo: 'Sobrecarga', flavor: 'Siempre activo: notas que tu resistencia es menor.' },
+      { titulo: 'Horas extra', flavor: 'Notas que tus golpes pesan más. El calor de la ambición te da ese empujón que necesitas para creerte que todo vale la pena.' },
+      { titulo: 'Contagio de burnout', flavor: 'El agotamiento no es individual. Cuando uno cae, todos lo sienten un poco.' },
     ],
-    confirmar: 'Pisar el suelo que arde.',
-    rechazar: 'Retirarse de la fragua.',
+    confirmar: 'Ficharme ya.',
+    rechazar: 'No sumar horas extra.',
     bautizo:
-      'El calor te golpea como un puño. Una sombra te escupe ceniza. «¿Nombre? Que no sea una maldición.»',
+      'Un tipo con ojeras y un vaso de café frío te mira sin parpadear. «¿Nombre? Ponlo en el asunto del correo.»',
   },
   {
-    id: 'Brote de acero',
-    icono: 'tree',
+    id: 'Valle Serenidad',
+    icono: 'flower1',
     narrativa:
-      'No hay murallas aquí. No las necesitas. El bosque de metal podrido que se extiende hasta donde alcanza la vista es tu única defensa. Y también tu condena.\n\n' +
-      'La lluvia no cae, se desliza. Se cuela por las grietas de tu armadura, por las rendijas de tu respiradero. No es agua, es aliento de la tierra. Disuelve el óxido, pero también la carne. Y sin embargo, sin ella, no sobrevives. Es un pacto: te pudre, pero te alimenta.\n\n' +
-      'Los árboles son mástiles de barcos hundidos. Las ramas, cables de alta tensión. El musgo es aceite quemado. Todo crece con una prisa enferma, como si el suelo supiera que su tiempo es prestado. Los que viven aquí han aprendido a moverse con el ácido, a sentir dónde va a caer antes de que caiga. A veces aciertan. A veces no.\n\n' +
-      'Cuando lanzas un golpe o un conjuro, la lluvia que llevas dentro puede salpicar a los que tienes al lado. No es intención. Es la sangre del territorio recordándote que aquí nada es limpio, ni siquiera tus aliados.',
+      'No hay muros aquí. No los necesitas. El bosque de incienso y mantras que se extiende hasta donde alcanza la vista es tu refugio. Y también tu ruina.\n\n' +
+      'El aire no se respira, se aspira con intención. No es oxígeno, es vibración. Te llena de paz, pero también te vacía la cuenta bancaria. Y sin embargo, sin él, no sobrevives. Es un pacto: te calma, pero te deja en bancarrota.\n\n' +
+      'Los árboles son sahumerios de edición limitada. Las ramas, cuencos tibetanos que cuestan más que el alquiler. El musgo es matcha en polvo que se vende a precio de oro. Los que viven aquí han aprendido a moverse con la energía, a sentir dónde va a fluir antes de que fluya. A veces aciertan. A veces están demasiado ocupados tomándole foto a su desayuno para darse cuenta.\n\n' +
+      'Cuando lanzas un golpe o un conjuro, la paz que llevas dentro puede desbordarse y salpicar a los que tienes al lado. No es mala intención. Es solo que tanta armonía termina siendo contagiosa.',
     efectos: [
-      { titulo: 'Voracidad', flavor: 'Notas que tu cuerpo se recupera más rápido, como si la podredumbre lo alimentara.' },
-      { titulo: 'Salpicadura ácida', flavor: 'De vez en cuando, tus ataques o hechizos dañan a un aliado sin explicación aparente.' },
+      { titulo: 'Brotes de paz', flavor: 'Tu cuerpo se recupera más rápido. Tanta meditación y superalimentos finalmente dan resultado. O eso crees.' },
+      { titulo: 'Resaca de serenidad', flavor: 'Tanta paz empalaga. Sin querer, tus habilidades pueden terminar afectando a un aliado con una felicidad tan intensa que les duele.' },
     ],
-    confirmar: 'Echar raíces de acero.',
-    rechazar: 'Buscar tierra más seca.',
+    confirmar: 'Fluir con la energía.',
+    rechazar: 'No estoy listo para tanta paz.',
     bautizo:
-      'La lluvia ácida golpea tu capucha. Una mano oxidada te tiende un trapo. «Di algo. Cualquier cosa que sirva para llamarte.»',
+      'Una mujer con incienso en la mano te sonríe con calma forzada. «¿Nombre? Que fluya, que no cueste.»',
   },
   {
-    id: 'El alacranero',
-    icono: 'bug-fill',
+    id: 'GlitchCity',
+    icono: 'broadcast-pin',
     narrativa:
-      'El otoño no es una estación aquí. Es una condena. Las noches se alargan como dedos de hambre, y el frío no llega de golpe, se cuela por los huesos, una caricia que anuncia lo que viene.\n\n' +
-      'El mundo ha perdido el color. Todo es gris, ocre, herrumbre. Los pocos árboles que quedan son esqueletos de metal retorcido, y el viento que silba entre sus ramas parece llevar voces de otros tiempos. Las bestias que sobreviven aquí no son grandes ni fuertes; son pacientes. Han aprendido a moverse en la penumbra, a oler el miedo antes de que el miedo sepa que está siendo olido.\n\n' +
-      'Pero hay algo más en el aire. Algo que los lugareños llaman la Danza. Cuando el viento cambia de dirección de repente, todo se acelera durante unos instantes: los pasos, los golpes, las sombras. Los que han vivido suficiente aquí saben que la Danza no es un regalo. Es una advertencia. Porque cuando el viento baila, nadie controla el ritmo. Ni siquiera tú. Y los tuyos también se desequilibran.',
+      'La ciudad no descansa. Tampoco lo hace su conexión. Cada farola es una antena, cada pared una pantalla, cada transeúnte un dato que aún no sabe que está siendo procesado. Las luces parpadean al ritmo de los latidos de quienes olvidaron cómo se mira sin grabar.\n\n' +
+      'Las calles están llenas de gente que camina sin ver. Sus ojos brillan con el reflejo de feeds interminables, sus dedos se mueven solos, como si el pulgar hubiera desarrollado conciencia propia. Los carteles no anuncian productos, anuncian tendencias. Y las tendencias duran lo que tarda un dedo en deslizarse hacia arriba.\n\n' +
+      'A veces, sin previo aviso, la ciudad se atasca. Las pantallas se congelan, los mensajes se duplican, el tiempo se parte en dos. Los lugareños llaman a esto el parpadeo. No es un error. Es el sistema respirando. Y cuando el sistema respira, todos se desincronizan. Porque en GlitchCity, el caos no es un accidente. Es la única constante.',
     efectos: [
-      { titulo: 'Danza de tormenta', flavor: 'En ciertos momentos de combate, tus movimientos se vuelven repentinamente más rápidos y esquivos, como si el viento te empujara.' },
-      { titulo: 'Perder el control', flavor: 'Cuando la Danza se activa, el caos no es selectivo. Tus aliados fallan más, tus enemigos también, pero los tuyos más.' },
+      { titulo: 'Scroll infinito', flavor: 'Tienes un don para moverte entre el ruido. Tus reflejos se agudizan, tus movimientos se vuelven impredecibles.' },
+      { titulo: 'Lag colectivo', flavor: 'El sistema no discrimina. Cuando se traba, todos se traban un poco, tú incluido.' },
     ],
-    confirmar: 'Seguir el rastro del viento.',
-    rechazar: 'Buscar un refugio más alto.',
+    confirmar: 'Sincronizar mi señal.',
+    rechazar: 'Necesito mejor cobertura.',
     bautizo:
-      'El viento se lleva tus primeras palabras. Un cazador te escupe en el suelo. «¿Nombre? Para saber a quién entierran.»',
+      'Una pantalla parpadea tu reflejo distorsionado. «¿Nombre? El sistema necesita un handle.»',
   },
   {
-    id: 'Última aurora',
-    icono: 'snow2',
+    id: 'Reino del Ghosting',
+    icono: 'chat-left-dots',
     narrativa:
-      'El invierno no llegó. Siempre estuvo. Solo que antes había treguas. Ahora no.\n\n' +
-      'La luz es un rumor. El día dura lo que un suspiro envenenado. El resto es noche, y la noche es una bestia que te lame los huesos. La vida aquí no florece, se enquista. La gente no vive, aguarda. No hay esperanza, solo memoria de lo que fue calor.\n\n' +
-      'El hielo no es blanco. Es gris como la ceniza, duro como el rencor. Todo lo que toca se vuelve frágil, incluso los pensamientos. Los que sobreviven han aprendido a endurecerse, a hacerse más densos que el frío, a caminar por el hielo como si fuera suya la tierra que pisotean. La defensa aquí no es un escudo, es una segunda piel.\n\n' +
-      'Pero hay un precio. Cuando lanzas un hechizo para proteger a los tuyos, el frío se cuela por las grietas. No siempre, pero a veces, la escarcha que llevas dentro se enreda en los pies de tus aliados. Los entumece. Los ralentiza. No es traición. Es el invierno recordándote que el calor no se da sin coste.',
+      'Las calles están llenas de gente con el teléfono en la mano, pero nadie responde nada. Las conversaciones cuelgan en el aire como estornudos que nunca terminan de salir. La gente se saluda con la mirada, pero no con la boca. Es más seguro así, no genera compromiso.\n\n' +
+      'Los edificios son grises y altos, con ventanas que parecen chats abiertos donde nadie escribe. En las puertas, carteles que dicen "Vuelvo en 5 minutos" desde hace tres años. Los habitantes han perfeccionado el arte de desaparecer sin moverse, de responder con un emoji y esfumarse durante semanas. No es maldad, es que contestar genera compromiso, y el compromiso genera ansiedad. Mejor no.\n\n' +
+      'A veces, en medio de la acción, uno se queda mirando la pantalla, esperando una respuesta que nunca llega. Y el resto del grupo se contagia. Los golpes se vuelven flojos, las reacciones se retrasan, y el equipo entero se mueve como si estuviera respondiendo un mensaje que ya no importa.',
     efectos: [
-      { titulo: 'Permafrost', flavor: 'Los golpes y hechizos enemigos te duelen menos, como si tu cuerpo se hubiera vuelto más denso, más reacio a ceder.' },
-      { titulo: 'Escarchas', flavor: 'Cuando lanzas un hechizo a un aliado, a veces notas que se mueve más lento, como si el frío lo hubiera alcanzado.' },
+      { titulo: 'Modo avión', flavor: 'Has perfeccionado el arte de no importarte. Las críticas rebotan, los golpes se amortiguan un poco.' },
+      { titulo: 'Se pegó el visto', flavor: 'El silencio es contagioso. Cuando actúas, tú y tus aliados pueden empezar a moverse más lento, como esperando una respuesta que nunca llega.' },
     ],
-    confirmar: 'Abrir la puerta al frío.',
-    rechazar: 'Buscar un resquicio de calor.',
+    confirmar: 'Dejar en visto mi antigua vida.',
+    rechazar: 'Prefiero seguir respondiendo tarde.',
     bautizo:
-      'El frío te corta la voz. Una figura envuelta en pieles te señala con la barbilla. «¿Nombre? O te pongo uno yo. No te va a gustar, pero servirá.»',
+      'Un chat se abre solo, sin nadie escribiendo. «¿Nombre? Contesta antes de que también te dejen en visto.»',
   },
 ];
 
 const TEXTO_BIENVENIDA =
-  'Has llegado al Último Bastión. No hay bienvenida, no hay celebración. Solo el rumor del viento entre grietas y el olor a metal quemado.\n\n' +
-  'Aquí los críos crecen rápido. A los quince, o te vas o te pudres. El mundo no espera a nadie, y el Bastión no es un hogar, es una estación de paso.\n\n' +
-  'Tienes que elegir un destino. Cuatro caminos. Cuatro formas de morir o de vivir un poco más.\n\n' +
-  'Ninguno es mejor que otro. Cada uno te dará algo y te quitará algo. No te lo voy a decir. Lo aprenderás a tu manera, como todos.\n\n' +
-  'Elige con cuidado. No hay vuelta atrás.';
+  'Bien, sí. Llegaste al "Último Bastión".\n\n' +
+  'Pero no te emociones, que no es un refugio épico. Es más bien la sala de espera de un centro comercial abandonado. Huele a vaper quemado, a desesperación con conexión WiFi y a ese ambientador de coche que intenta tapar lo inevitable.\n\n' +
+  'Aquí los jóvenes crecen rápido... porque si no, les dan like a sus fotos de bebé y eso es peor que la muerte.\n\n' +
+  'Tienes que elegir un camino. Cuatro. Como las direcciones de un mapa de Fortnite, pero con más traumas y menos bots.\n\n' +
+  'Ninguna zona es la "correcta". Todas son igual de ridículas. La única diferencia es el color de las tonterías que vas a tener que soportar.\n\n' +
+  'Elige con el instinto. O con el dedo. No hay vuelta atrás... bueno, sí, puedes reiniciar la app, pero te haré sentir culpable.';
 
 const NOMBRE_REGEX = /^[A-Za-z]{4,12}$/;
 const MENSAJE_ERROR_NOMBRE = 'Ni muy largo ni muy corto. Letras, nada más. Prueba otra vez.';
@@ -130,6 +129,12 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
   const [perfilCreado, setPerfilCreado] = useState<any>(null);
 
   const tema = zonaActiva ? getTheme(zonaActiva.id) : temaNeutro;
+
+  useEffect(() => {
+    const activo = zonaActiva ? getTheme(zonaActiva.id) : null;
+    document.documentElement.style.setProperty('--font-display', activo ? activo.fontDisplay : "'Press Start 2P', cursive");
+    document.documentElement.style.setProperty('--font-body', activo ? activo.fontBody : "'VT323', monospace");
+  }, [zonaActiva]);
 
   const elegirZona = (zona: ZonaInfo) => {
     setZonaActiva(zona);

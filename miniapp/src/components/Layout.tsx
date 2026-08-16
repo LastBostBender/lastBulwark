@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { getTheme } from '../utils/themes';
 
 type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
@@ -15,6 +15,11 @@ interface LayoutProps {
 
 export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNavigate }: LayoutProps) => {
   const theme = getTheme(zona || null); // <--- CORREGIDO
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-display', theme.fontDisplay);
+    document.documentElement.style.setProperty('--font-body', theme.fontBody);
+  }, [theme.fontDisplay, theme.fontBody]);
 
   const colorTab = (vista: Vista) => (vistaActual === vista ? theme.accent : theme.text);
   const ir = (vista: Vista) => () => onNavigate && onNavigate(vista);
