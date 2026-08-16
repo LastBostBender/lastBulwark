@@ -492,7 +492,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
             </div>
             <div className="d-flex flex-column" style={{ gap: '6px', width: '70px' }}>
               <button disabled={enviando} onClick={() => setAccionArma(true)} className="btn btn-outline-light flex-grow-1">
-                <i className="bi bi-sword"></i>
+                <i className="bi bi-hammer"></i>
               </button>
               <button disabled={enviando} onClick={() => alert('Inventario aún no disponible.')} className="btn btn-outline-light flex-grow-1">
                 <i className="bi bi-bag"></i>

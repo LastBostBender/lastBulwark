@@ -43,12 +43,12 @@ function mensajeResultadoCombate(resultado: any): string {
 
   const detalleXp = participantes
     .map((p) => {
-      const subio = p.leveled_up ? ` (¡sube a nivel ${p.new_level}!)` : "";
-      return `${p.nombre} +${p.xp_added ?? 0} XP${subio}`;
+      const medalla = p.leveled_up ? ` 🎖 (¡sube a nivel ${p.new_level}!)` : "";
+      return `${p.nombre}${medalla}\n|--- +${p.xp_added ?? 0} XP`;
     })
-    .join(" · ");
+    .join("\n");
 
-  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n${detalleXp}`;
+  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n\n${detalleXp}`;
 }
 
 export async function handleCronTick() {
