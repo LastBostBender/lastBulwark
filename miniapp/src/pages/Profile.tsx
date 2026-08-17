@@ -4,6 +4,7 @@ import { OnboardingFlow as Registro } from '../components/Registro';
 import { ProfileView } from '../components/ProfileView';
 import { PoderesView } from '../components/PoderesView';
 import { CombatView } from '../components/CombatView';
+import { InventarioView } from '../components/InventarioView';
 import { Layout } from '../components/Layout';
 import TelegramWebApp from '@twa-dev/sdk';
 
@@ -142,9 +143,13 @@ export const Profile = () => {
     return <PoderesView perfil={perfil} onNavigate={setVista} />;
   }
 
-  // Mazmorra e Inventario todavía no existen como vistas propias.
-  // Placeholder para que los tabs del footer no queden muertos mientras se construyen.
-  if (vista === 'mazmorra' || vista === 'inventario') {
+  if (vista === 'inventario') {
+    return <InventarioView perfil={perfil} onNavigate={setVista} />;
+  }
+
+  // Mazmorra todavía no existe como vista propia.
+  // Placeholder para que el tab del footer no quede muerto mientras se construye.
+  if (vista === 'mazmorra') {
     return (
       <Layout
         nombre={perfil.nombre_personaje}
@@ -155,7 +160,7 @@ export const Profile = () => {
         onNavigate={setVista}
       >
         <div className="text-center mt-5" style={{ fontFamily: 'var(--font-body)' }}>
-          {vista === 'mazmorra' ? 'La mazmorra aún no abre sus puertas.' : 'El inventario todavía está vacío... de código.'}
+          La mazmorra aún no abre sus puertas.
         </div>
       </Layout>
     );
