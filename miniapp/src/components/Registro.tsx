@@ -274,7 +274,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                   >
                     <i className={`bi bi-${zona.icono}`} style={{ fontSize: '1.6rem', color: t.accent }}></i>
                     <span>{zona.id}</span>
-                    <span style={{ marginLeft: 'auto', color: t.border, fontSize: '0.8rem' }}>
+                    <span style={{ marginLeft: 'auto', color: temaNeutro.text, opacity: 0.5, fontSize: '0.8rem' }}>
                       <i className="bi bi-chevron-right"></i>
                     </span>
                   </button>
@@ -316,8 +316,9 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                   fontSize: '0.6rem',
                   padding: '0.6rem 1rem',
                   backgroundColor: 'transparent',
-                  border: `1px solid ${tema.border}`,
-                  color: tema.border,
+                  border: `1px solid ${temaNeutro.text}`,
+                  color: temaNeutro.text,
+                  opacity: 0.75,
                   letterSpacing: '0.5px',
                 }}
               >
