@@ -58,12 +58,12 @@ const COLOR_RAREZA: Record<Rareza, string> = {
 };
 
 const ICONO_SLOT: Record<SlotEquipo, string> = {
-  cabeza: 'bi-badge-hd',
-  torso: 'bi-vest',
-  pantalones: 'bi-align-bottom',
-  pies: 'bi-boot',
-  accesorio: 'bi-gem',
-  arma: 'bi-sword',
+  cabeza: 'bi-sunglasses',
+  torso: 'bi-postage-fill',
+  pantalones: 'bi-box',
+  pies: 'bi-cloud-fog2',
+  accesorio: 'bi-watch',
+  arma: 'bi-hammer',
 };
 
 const ETIQUETA_SLOT: Record<SlotEquipo, string> = {
