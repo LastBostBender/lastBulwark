@@ -57,7 +57,7 @@ export const themes: Record<string, {
     accent: '#8a6de9',
     badge: '#6b6b6b',
     fontDisplay: "'Inter', sans-serif",
-    fontBody: "'Inter', sans-serif",
+    fontBody: "'Fira Code', monospace",
   }
 };
 

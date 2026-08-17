@@ -24,76 +24,59 @@ const ZONAS: ZonaInfo[] = [
     id: 'Núcleo Hustle',
     icono: 'cup-hot-fill',
     narrativa:
-      'El ruido de los teclados nunca cesa. Es el himno de una generación que cree que dormir es perder, que el café es un combustible y que las horas extras son medallas de honor. Las pantallas parpadean como ojos de un dios que se olvidó de parpadear.\n\n' +
-      'En sus pasillos cuelgan los restos de los que intentaron domar el tiempo: certificados de productividad enmarcados, agendas donde solo se tachan sueños, tazas con frases como "El éxito no espera" que ya nadie lee porque están demasiado ocupados actualizando su perfil de LinkedIn. El humo del vaper se mezcla con el aroma a ambición barata y a desodorante de última generación que no tapa el olor a desesperación.\n\n' +
-      'El agotamiento no se ha ido. Vive en las ojeras que son más profundas que sus ideas, en las publicaciones de LinkedIn que presumen de jornadas de 14 horas, en la nuca de los que llevan tres días sin dormir porque "el descanso es para los débiles". Los que sobreviven aprenden a moverse como el capital: rápidos, fríos, capaces de liquidar cualquier obstáculo con una presentación bien sincronizada. Pero el precio es alto. El sistema te exprime, te estruja, te convence de que eres imparable mientras desangras tu vida en métricas y KPIs.',
+      'El ruido de los teclados nunca cesa: himno de una generación que cree que dormir es perder y el café es combustible. Las horas extra son medallas de honor; el agotamiento, una publicación más de LinkedIn.',
     efectos: [
       { titulo: 'Horas extra', flavor: 'Notas que tus golpes pesan más. El calor de la ambición te da ese empujón que necesitas para creerte que todo vale la pena.' },
       { titulo: 'Contagio de burnout', flavor: 'El agotamiento no es individual. Cuando uno cae, todos lo sienten un poco.' },
     ],
     confirmar: 'Ficharme ya.',
     rechazar: 'No sumar horas extra.',
-    bautizo:
-      'Un tipo con ojeras y un vaso de café frío te mira sin parpadear. «¿Nombre? Ponlo en el asunto del correo.»',
+    bautizo: 'Un tipo con ojeras y un vaso de café frío te mira sin parpadear. «¿Nombre? Ponlo en el asunto del correo.»',
   },
   {
     id: 'Valle Serenidad',
     icono: 'flower1',
     narrativa:
-      'No hay muros aquí. No los necesitas. El bosque de incienso y mantras que se extiende hasta donde alcanza la vista es tu refugio. Y también tu ruina.\n\n' +
-      'El aire no se respira, se aspira con intención. No es oxígeno, es vibración. Te llena de paz, pero también te vacía la cuenta bancaria. Y sin embargo, sin él, no sobrevives. Es un pacto: te calma, pero te deja en bancarrota.\n\n' +
-      'Los árboles son sahumerios de edición limitada. Las ramas, cuencos tibetanos que cuestan más que el alquiler. El musgo es matcha en polvo que se vende a precio de oro. Los que viven aquí han aprendido a moverse con la energía, a sentir dónde va a fluir antes de que fluya. A veces aciertan. A veces están demasiado ocupados tomándole foto a su desayuno para darse cuenta.\n\n' +
-      'Cuando lanzas un golpe o un conjuro, la paz que llevas dentro puede desbordarse y salpicar a los que tienes al lado. No es mala intención. Es solo que tanta armonía termina siendo contagiosa.',
+      'No hay muros aquí, no los necesitas: el bosque de incienso y mantras es tu refugio y también tu ruina. El aire no se respira, se aspira con intención — te llena de paz y te vacía la cuenta bancaria.',
     efectos: [
       { titulo: 'Brotes de paz', flavor: 'Tu cuerpo se recupera más rápido. Tanta meditación y superalimentos finalmente dan resultado. O eso crees.' },
       { titulo: 'Resaca de serenidad', flavor: 'Tanta paz empalaga. Sin querer, tus habilidades pueden terminar afectando a un aliado con una felicidad tan intensa que les duele.' },
     ],
     confirmar: 'Fluir con la energía.',
     rechazar: 'No estoy listo para tanta paz.',
-    bautizo:
-      'Una mujer con incienso en la mano te sonríe con calma forzada. «¿Nombre? Que fluya, que no cueste.»',
+    bautizo: 'Una mujer con incienso en la mano te sonríe con calma forzada. «¿Nombre? Que fluya, que no cueste.»',
   },
   {
     id: 'GlitchCity',
     icono: 'broadcast-pin',
     narrativa:
-      'La ciudad no descansa. Tampoco lo hace su conexión. Cada farola es una antena, cada pared una pantalla, cada transeúnte un dato que aún no sabe que está siendo procesado. Las luces parpadean al ritmo de los latidos de quienes olvidaron cómo se mira sin grabar.\n\n' +
-      'Las calles están llenas de gente que camina sin ver. Sus ojos brillan con el reflejo de feeds interminables, sus dedos se mueven solos, como si el pulgar hubiera desarrollado conciencia propia. Los carteles no anuncian productos, anuncian tendencias. Y las tendencias duran lo que tarda un dedo en deslizarse hacia arriba.\n\n' +
-      'A veces, sin previo aviso, la ciudad se atasca. Las pantallas se congelan, los mensajes se duplican, el tiempo se parte en dos. Los lugareños llaman a esto el parpadeo. No es un error. Es el sistema respirando. Y cuando el sistema respira, todos se desincronizan. Porque en GlitchCity, el caos no es un accidente. Es la única constante.',
+      'La ciudad no descansa. Tampoco su conexión. Cada farola es una antena, cada transeúnte un dato sin procesar. A veces todo se atasca: no es un error, es el sistema respirando.',
     efectos: [
       { titulo: 'Scroll infinito', flavor: 'Tienes un don para moverte entre el ruido. Tus reflejos se agudizan, tus movimientos se vuelven impredecibles.' },
       { titulo: 'Lag colectivo', flavor: 'El sistema no discrimina. Cuando se traba, todos se traban un poco, tú incluido.' },
     ],
     confirmar: 'Sincronizar mi señal.',
     rechazar: 'Necesito mejor cobertura.',
-    bautizo:
-      'Una pantalla parpadea tu reflejo distorsionado. «¿Nombre? El sistema necesita un handle.»',
+    bautizo: 'Una pantalla parpadea tu reflejo distorsionado. «¿Nombre? El sistema necesita un handle.»',
   },
   {
     id: 'Reino del Ghosting',
     icono: 'chat-left-dots',
     narrativa:
-      'Las calles están llenas de gente con el teléfono en la mano, pero nadie responde nada. Las conversaciones cuelgan en el aire como estornudos que nunca terminan de salir. La gente se saluda con la mirada, pero no con la boca. Es más seguro así, no genera compromiso.\n\n' +
-      'Los edificios son grises y altos, con ventanas que parecen chats abiertos donde nadie escribe. En las puertas, carteles que dicen "Vuelvo en 5 minutos" desde hace tres años. Los habitantes han perfeccionado el arte de desaparecer sin moverse, de responder con un emoji y esfumarse durante semanas. No es maldad, es que contestar genera compromiso, y el compromiso genera ansiedad. Mejor no.\n\n' +
-      'A veces, en medio de la acción, uno se queda mirando la pantalla, esperando una respuesta que nunca llega. Y el resto del grupo se contagia. Los golpes se vuelven flojos, las reacciones se retrasan, y el equipo entero se mueve como si estuviera respondiendo un mensaje que ya no importa.',
+      'Las calles están llenas de gente con el teléfono en la mano que no responde nada. Se saludan con la mirada, nunca con la boca — contestar genera compromiso, y eso da ansiedad.',
     efectos: [
       { titulo: 'Modo avión', flavor: 'Has perfeccionado el arte de no importarte. Las críticas rebotan, los golpes se amortiguan un poco.' },
       { titulo: 'Se pegó el visto', flavor: 'El silencio es contagioso. Cuando actúas, tú y tus aliados pueden empezar a moverse más lento, como esperando una respuesta que nunca llega.' },
     ],
     confirmar: 'Dejar en visto mi antigua vida.',
     rechazar: 'Prefiero seguir respondiendo tarde.',
-    bautizo:
-      'Un chat se abre solo, sin nadie escribiendo. «¿Nombre? Contesta antes de que también te dejen en visto.»',
+    bautizo: 'Un chat se abre solo, sin nadie escribiendo. «¿Nombre? Contesta antes de que también te dejen en visto.»',
   },
 ];
 
 const TEXTO_BIENVENIDA =
-  'Bien, sí. Llegaste al "Último Bastión".\n\n' +
-  'Pero no te emociones, que no es un refugio épico. Es más bien la sala de espera de un centro comercial abandonado. Huele a vaper quemado, a desesperación con conexión WiFi y a ese ambientador de coche que intenta tapar lo inevitable.\n\n' +
-  'Aquí los jóvenes crecen rápido... porque si no, les dan like a sus fotos de bebé y eso es peor que la muerte.\n\n' +
-  'Tienes que elegir un camino. Cuatro. Como las direcciones de un mapa de Fortnite, pero con más traumas y menos bots.\n\n' +
-  'Ninguna zona es la "correcta". Todas son igual de ridículas. La única diferencia es el color de las tonterías que vas a tener que soportar.\n\n' +
-  'Elige con el instinto. O con el dedo. No hay vuelta atrás... bueno, sí, puedes reiniciar la app, pero te haré sentir culpable.';
+  'Bien, sí. Llegaste al "Último Bastión". No es un refugio épico: es la sala de espera de un centro comercial abandonado, con olor a vaper quemado y ambientador de coche que no tapa lo inevitable.\n\n' +
+  'Elige un camino. Ninguno es el correcto — todos son igual de ridículos, solo cambia el color de las tonterías que vas a tener que soportar.';
 
 const NOMBRE_REGEX = /^[A-Za-z]{4,12}$/;
 const MENSAJE_ERROR_NOMBRE = 'Ni muy largo ni muy corto. Letras, nada más. Prueba otra vez.';
@@ -106,7 +89,7 @@ const temaNeutro = {
   accent: '#e0e0e0',
 };
 
-type Paso = 'bienvenida' | 'zona' | 'zona-detalle' | 'bautizo' | 'completado';
+type Paso = 'inicio' | 'zona-detalle';
 
 interface OnboardingFlowProps {
   telegramId?: number;
@@ -120,13 +103,12 @@ function getTelegramId(propId?: number): number | null {
 }
 
 export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps) => {
-  const [paso, setPaso] = useState<Paso>('bienvenida');
+  const [paso, setPaso] = useState<Paso>('inicio');
   const [zonaActiva, setZonaActiva] = useState<ZonaInfo | null>(null);
   const [nombre, setNombre] = useState('');
   const [errorNombre, setErrorNombre] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
-  const [perfilCreado, setPerfilCreado] = useState<any>(null);
 
   const tema = zonaActiva ? getTheme(zonaActiva.id) : temaNeutro;
 
@@ -139,15 +121,14 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
   const elegirZona = (zona: ZonaInfo) => {
     setZonaActiva(zona);
     setPaso('zona-detalle');
+    setNombre('');
+    setErrorNombre(null);
+    setErrorGuardado(null);
   };
 
-  const rechazarZona = () => {
+  const cancelar = () => {
     setZonaActiva(null);
-    setPaso('zona');
-  };
-
-  const confirmarZona = () => {
-    setPaso('bautizo');
+    setPaso('inicio');
   };
 
   const validarNombre = (valor: string) => NOMBRE_REGEX.test(valor);
@@ -182,8 +163,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
       return;
     }
 
-    setPerfilCreado(data);
-    setPaso('completado');
+    onCompletado(data); // directo al perfil, sin pantalla extra
   };
 
   return (
@@ -212,40 +192,12 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
           transition: 'border-color 0.4s ease',
         }}
       >
-        {paso === 'bienvenida' && (
+        {paso === 'inicio' && (
           <div style={{ animation: 'fadeIn 0.5s ease' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.15rem', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
               {TEXTO_BIENVENIDA}
             </p>
-            <div className="text-center mt-4">
-              <button
-                onClick={() => setPaso('zona')}
-                className="btn"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.7rem 1.2rem',
-                  backgroundColor: 'transparent',
-                  border: `1px solid ${temaNeutro.text}`,
-                  color: temaNeutro.text,
-                  letterSpacing: '1px',
-                }}
-              >
-                Elegir un destino
-              </button>
-            </div>
-          </div>
-        )}
-
-        {paso === 'zona' && (
-          <div style={{ animation: 'fadeIn 0.4s ease' }}>
-            <p
-              className="text-center mb-4"
-              style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', letterSpacing: '1px' }}
-            >
-              Cuatro caminos
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '1.2rem' }}>
               {ZONAS.map((zona) => {
                 const t = getTheme(zona.id);
                 return (
@@ -254,29 +206,26 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                     onClick={() => elegirZona(zona)}
                     style={{
                       display: 'flex',
+                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '0.8rem',
-                      width: '100%',
-                      textAlign: 'left',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      textAlign: 'center',
                       background: 'transparent',
                       border: `1px solid ${temaNeutro.border}`,
-                      borderLeft: `4px solid ${t.accent}`,
+                      borderTop: `3px solid ${t.accent}`,
                       borderRadius: '4px',
-                      padding: '0.8rem 1rem',
+                      padding: '1rem 0.5rem',
                       color: temaNeutro.text,
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '1.1rem',
+                      fontFamily: t.fontDisplay,
+                      fontSize: '0.75rem',
+                      letterSpacing: '0.5px',
                       cursor: 'pointer',
-                      transition: 'transform 0.15s ease, background-color 0.15s ease',
+                      minHeight: '90px',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     <i className={`bi bi-${zona.icono}`} style={{ fontSize: '1.6rem', color: t.accent }}></i>
                     <span>{zona.id}</span>
-                    <span style={{ marginLeft: 'auto', color: temaNeutro.text, opacity: 0.5, fontSize: '0.8rem' }}>
-                      <i className="bi bi-chevron-right"></i>
-                    </span>
                   </button>
                 );
               })}
@@ -292,60 +241,23 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                 {zonaActiva.id}
               </p>
             </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', lineHeight: 1.6 }}>
               {zonaActiva.narrativa}
             </p>
-            <div style={{ borderTop: `1px solid ${tema.border}`, margin: '1.2rem 0', paddingTop: '1rem' }}>
+            <div style={{ borderTop: `1px solid ${tema.border}`, margin: '1rem 0', paddingTop: '0.8rem' }}>
               {zonaActiva.efectos.map((efecto) => (
                 <div key={efecto.titulo} style={{ marginBottom: '0.6rem' }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', color: tema.accent, letterSpacing: '0.5px' }}>
                     {efecto.titulo}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', color: temaNeutro.text, opacity: 0.85 }}>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.95rem', color: temaNeutro.text, opacity: 0.85 }}>
                     {efecto.flavor}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="d-flex gap-2 justify-content-center mt-4">
-              <button
-                onClick={rechazarZona}
-                className="btn"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.6rem',
-                  padding: '0.6rem 1rem',
-                  backgroundColor: 'transparent',
-                  border: `1px solid ${temaNeutro.text}`,
-                  color: temaNeutro.text,
-                  opacity: 0.75,
-                  letterSpacing: '0.5px',
-                }}
-              >
-                {zonaActiva.rechazar}
-              </button>
-              <button
-                onClick={confirmarZona}
-                className="btn"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.6rem',
-                  padding: '0.6rem 1rem',
-                  backgroundColor: 'transparent',
-                  border: `1px solid ${tema.accent}`,
-                  color: tema.accent,
-                  letterSpacing: '0.5px',
-                }}
-              >
-                {zonaActiva.confirmar}
-              </button>
-            </div>
-          </div>
-        )}
 
-        {paso === 'bautizo' && zonaActiva && (
-          <div style={{ animation: 'fadeIn 0.4s ease' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.15rem', lineHeight: 1.6 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', lineHeight: 1.5, borderTop: `1px solid ${tema.border}`, paddingTop: '0.8rem' }}>
               {zonaActiva.bautizo}
             </p>
             <input
@@ -358,7 +270,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
               autoFocus
               style={{
                 width: '100%',
-                marginTop: '1rem',
+                marginTop: '0.6rem',
                 padding: '0.6rem 0.8rem',
                 fontFamily: 'var(--font-body)',
                 fontSize: '1.2rem',
@@ -370,32 +282,33 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
               }}
             />
             {errorNombre && (
-              <p style={{ color: '#e74c3c', fontFamily: 'var(--font-body)', fontSize: '0.95rem', marginTop: '0.4rem' }}>
+              <p style={{ color: '#e74c3c', fontFamily: 'var(--font-body)', fontSize: '0.9rem', marginTop: '0.4rem' }}>
                 {errorNombre}
               </p>
             )}
             {errorGuardado && (
-              <p style={{ color: '#e74c3c', fontFamily: 'var(--font-body)', fontSize: '0.95rem', marginTop: '0.4rem' }}>
+              <p style={{ color: '#e74c3c', fontFamily: 'var(--font-body)', fontSize: '0.9rem', marginTop: '0.4rem' }}>
                 {errorGuardado}
               </p>
             )}
-            <div className="d-flex gap-2 justify-content-center mt-4">
+
+            <div className="d-flex gap-2 justify-content-center mt-3">
               <button
-                onClick={rechazarZona}
+                onClick={cancelar}
                 disabled={guardando}
                 className="btn"
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.7rem 1.2rem',
+                  fontSize: '0.65rem',
+                  padding: '0.6rem 1rem',
                   backgroundColor: 'transparent',
                   border: `1px solid ${temaNeutro.text}`,
                   color: temaNeutro.text,
-                  letterSpacing: '1px',
-                  opacity: guardando ? 0.6 : 1,
+                  opacity: guardando ? 0.6 : 0.85,
+                  letterSpacing: '0.5px',
                 }}
               >
-                Cambiar de zona
+                {zonaActiva.rechazar}
               </button>
               <button
                 onClick={enviarNombre}
@@ -403,46 +316,17 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                 className="btn"
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.7rem 1.2rem',
+                  fontSize: '0.65rem',
+                  padding: '0.6rem 1rem',
                   backgroundColor: 'transparent',
                   border: `1px solid ${tema.accent}`,
                   color: tema.accent,
-                  letterSpacing: '1px',
+                  letterSpacing: '0.5px',
                   opacity: guardando ? 0.6 : 1,
                   cursor: guardando ? 'wait' : 'pointer',
                 }}
               >
-                {guardando ? 'Grabando...' : 'Aceptar el nombre'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {paso === 'completado' && zonaActiva && (
-          <div style={{ animation: 'fadeIn 0.5s ease', textAlign: 'center' }}>
-            <i className={`bi bi-${zonaActiva.icono}`} style={{ fontSize: '2.2rem', color: tema.accent }}></i>
-            <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: tema.accent, margin: '0.8rem 0' }}>
-              Bienvenido, {nombre}.
-            </p>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', lineHeight: 1.6 }}>
-              Tu destino queda marcado en {zonaActiva.id}. Que el Bastión te sea tan generoso como te lo hayas ganado.
-            </p>
-            <div className="mt-4">
-              <button
-                onClick={() => perfilCreado && onCompletado(perfilCreado)}
-                className="btn"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.7rem 1.2rem',
-                  backgroundColor: 'transparent',
-                  border: `1px solid ${tema.accent}`,
-                  color: tema.accent,
-                  letterSpacing: '1px',
-                }}
-              >
-                Entrar al Bastión
+                {guardando ? 'Grabando...' : zonaActiva.confirmar}
               </button>
             </div>
           </div>
