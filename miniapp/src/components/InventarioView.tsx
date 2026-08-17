@@ -248,7 +248,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
             {(Object.keys(POSICION_DADO) as SlotEquipo[]).map((slot) => {
               const it = equipados[slot];
               const pos = POSICION_DADO[slot];
-              const borde = it?.rareza ? COLOR_RAREZA[it.rareza] : theme.border;
+              const borde = it?.rareza ? COLOR_RAREZA[it.rareza] : `${theme.text}50`;
               return (
                 <button
                   key={slot}
@@ -306,7 +306,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   }}
                 >
                   {slots.map((it, i) => {
-                    const borde = it?.rareza ? COLOR_RAREZA[it.rareza] : `${theme.border}80`;
+                    const borde = it?.rareza ? COLOR_RAREZA[it.rareza] : `${theme.text}50`;
                     return (
                       <button
                         key={it ? it.character_item_id : `vacio-${tipo}-${i}`}
@@ -375,7 +375,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               width: '100%',
               maxWidth: '320px',
               backgroundColor: theme.cardBg,
-              border: `2px solid ${seleccionado.rareza ? COLOR_RAREZA[seleccionado.rareza] : theme.border}`,
+              border: `2px solid ${seleccionado.rareza ? COLOR_RAREZA[seleccionado.rareza] : theme.text + '50'}`,
               borderRadius: '8px',
               padding: '1rem',
               fontFamily: 'var(--font-body)',
