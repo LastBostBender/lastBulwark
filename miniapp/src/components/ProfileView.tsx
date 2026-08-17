@@ -95,8 +95,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     let query = supabase
       .from('zone_passives')
       .select('nombre, descripcion_flavor')
-      .eq('zona', perfil.zona)
-      .eq('tipo', 'permanente');
+      .eq('zona', perfil.zona);
     if (temporadaActual) query = query.or(`temporada.is.null,temporada.eq.${temporadaActual}`);
     const listaRes = await query;
     if (listaRes.data) setPasivosZonaActivos(listaRes.data as any[]);
