@@ -34,6 +34,7 @@ interface ItemRow {
   power_nombre: string | null;
   power_descripcion: string | null;
   power_icono: string | null;
+  nivel_minimo: number;
 }
 
 const CAPACIDAD: Record<ItemTipo, number> = {
@@ -121,6 +122,7 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   no_esta_equipado: 'Ese objeto no está equipado.',
   debe_desequiparse_primero: 'Desequípalo antes de eliminarlo.',
   cantidad_invalida: 'Cantidad inválida.',
+  nivel_insuficiente: 'Tu nivel no alcanza para equipar esto.',
 };
 
 export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
@@ -212,6 +214,9 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
       </Layout>
     );
   }
+
+  const nivelInsuficiente =
+    !!seleccionado && seleccionado.tipo === 'equipamiento' && perfil.nivel < seleccionado.nivel_minimo;
 
   return (
     <Layout
@@ -399,6 +404,11 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               {seleccionado.rareza && (
                 <span style={{ color: COLOR_RAREZA[seleccionado.rareza] }}> · {seleccionado.rareza}</span>
               )}
+              {seleccionado.tipo === 'equipamiento' && seleccionado.nivel_minimo > 1 && (
+                <span style={{ color: nivelInsuficiente ? '#ff6b6b' : theme.text }}>
+                  {' '}· Nivel mín. {seleccionado.nivel_minimo}
+                </span>
+              )}
             </div>
 
             <p style={{ fontSize: '0.95rem', marginBottom: '0.6rem' }}>{seleccionado.descripcion}</p>
@@ -445,10 +455,16 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               {seleccionado.tipo === 'equipamiento' && !seleccionado.equipado && (
                 <button
                   className="btn rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
-                  disabled={procesando}
+                  style={{
+                    width: '2.2rem',
+                    height: '2.2rem',
+                    border: `1px solid ${nivelInsuficiente ? theme.text + '50' : theme.accent}`,
+                    color: nivelInsuficiente ? theme.text + '50' : theme.accent,
+                    backgroundColor: 'transparent',
+                  }}
+                  disabled={procesando || nivelInsuficiente}
                   onClick={() => ejecutarAccion('inv_equipar')}
-                  title="Equipar"
+                  title={nivelInsuficiente ? `Requiere nivel ${seleccionado.nivel_minimo}` : 'Equipar'}
                 >
                   <i className="bi bi-person-plus"></i>
                 </button>
