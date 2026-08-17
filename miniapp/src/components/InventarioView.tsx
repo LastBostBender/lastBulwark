@@ -107,6 +107,8 @@ const NOMBRE_STAT: Record<string, string> = {
   ps_max: 'Puntos de salud máx.',
   pm_actual: 'Puntos de maná',
   pm_max: 'Puntos de maná máx.',
+  precision_stat: 'Precisión',
+  escape: 'Escape',
 };
 
 const nombreStat = (clave: string) => NOMBRE_STAT[clave] ?? clave.replace(/_/g, ' ');
