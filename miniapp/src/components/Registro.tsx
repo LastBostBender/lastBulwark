@@ -259,7 +259,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
                       width: '100%',
                       textAlign: 'left',
                       background: 'transparent',
-                      border: `1px solid ${t.border}`,
+                      border: `1px solid ${temaNeutro.border}`,
                       borderLeft: `4px solid ${t.accent}`,
                       borderRadius: '4px',
                       padding: '0.8rem 1rem',
