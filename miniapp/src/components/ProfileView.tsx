@@ -375,11 +375,11 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
               </div>
             </div>
           </div>
-          <div className="text-center" style={{ fontSize: '0.7rem', color: theme.border, marginTop: '0.2rem' }}>
+          <div className="text-center" style={{ fontSize: '0.7rem', color: theme.text, marginTop: '0.2rem' }}>
             {puntosDisponibles > 0 ? (
               <span style={{ color: theme.accent }}>Puntos de stats: {puntosDisponibles}</span>
             ) : (
-              <span style={{ color: theme.border }}>Sin puntos de stats</span>
+              <span style={{ color: theme.text }}>Sin puntos de stats</span>
             )}
           </div>
         </div>
@@ -436,7 +436,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
               <i className="bi bi-geo-alt-fill me-1"></i> Pasivo{pasivosZonaActivos.length > 1 ? 's' : ''} de {profile.zona}
             </div>
             {pasivosZonaActivos.map((p) => (
-              <div key={p.nombre} style={{ color: theme.border, marginBottom: '0.15rem' }}>
+              <div key={p.nombre} style={{ color: theme.text, marginBottom: '0.15rem' }}>
                 <span style={{ color: theme.text }}>{p.nombre}:</span> {p.descripcion_flavor}
               </div>
             ))}

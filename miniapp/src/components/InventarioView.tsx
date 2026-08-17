@@ -16,7 +16,7 @@ interface InventarioViewProps {
 
 type ItemTipo = 'equipamiento' | 'usable' | 'chatarra';
 type Rareza = 'gris' | 'blanco' | 'verde' | 'azul' | 'morado' | 'naranja';
-type SlotEquipo = 'cabeza' | 'torso' | 'pantalones' | 'pies' | 'accesorio';
+type SlotEquipo = 'cabeza' | 'torso' | 'pantalones' | 'pies' | 'accesorio' | 'arma';
 
 interface ItemRow {
   character_item_id: number;
@@ -63,6 +63,7 @@ const ICONO_SLOT: Record<SlotEquipo, string> = {
   pantalones: 'bi-align-bottom',
   pies: 'bi-boot',
   accesorio: 'bi-gem',
+  arma: 'bi-sword',
 };
 
 const ETIQUETA_SLOT: Record<SlotEquipo, string> = {
@@ -71,15 +72,17 @@ const ETIQUETA_SLOT: Record<SlotEquipo, string> = {
   pantalones: 'Pantalones',
   pies: 'Pies',
   accesorio: 'Accesorio',
+  arma: 'Arma',
 };
 
-// Disposición de los 5 slots como los puntos de un dado (⁙): 4 esquinas + centro.
+// Disposición de los 6 slots como los puntos de un dado (⚅): 2 columnas x 3 filas.
 const POSICION_DADO: Record<SlotEquipo, { gridColumn: number; gridRow: number }> = {
   cabeza: { gridColumn: 1, gridRow: 1 },
-  torso: { gridColumn: 3, gridRow: 1 },
+  arma: { gridColumn: 2, gridRow: 1 },
+  torso: { gridColumn: 1, gridRow: 2 },
   accesorio: { gridColumn: 2, gridRow: 2 },
   pantalones: { gridColumn: 1, gridRow: 3 },
-  pies: { gridColumn: 3, gridRow: 3 },
+  pies: { gridColumn: 2, gridRow: 3 },
 };
 
 const ICONO_SECCION: Record<ItemTipo, string> = {
@@ -203,7 +206,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
         vistaActual="inventario"
         onNavigate={onNavigate}
       >
-        <p className="text-center mt-5" style={{ fontFamily: 'var(--font-body)', color: theme.border }}>
+        <p className="text-center mt-5" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>
           Cargando inventario...
         </p>
       </Layout>
@@ -231,12 +234,12 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
             borderBottom: `1px solid ${theme.border}`,
           }}
         >
-          <i className="bi bi-person-arms-up" style={{ fontSize: '2.6rem', color: theme.border }}></i>
+          <i className="bi bi-person-arms-up" style={{ fontSize: '2.6rem', color: theme.text }}></i>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 2.6rem)',
+              gridTemplateColumns: 'repeat(2, 2.6rem)',
               gridTemplateRows: 'repeat(3, 2.6rem)',
               columnGap: '0.4rem',
               rowGap: '0.4rem',
@@ -259,7 +262,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                     borderRadius: '50%',
                     border: `2px solid ${borde}`,
                     backgroundColor: it ? `${borde}22` : 'transparent',
-                    color: it ? borde : theme.border,
+                    color: it ? borde : theme.text,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -290,7 +293,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                 >
                   <i className={`bi ${ICONO_SECCION[tipo]}`}></i>
                   <span>{TITULO_SECCION[tipo]}</span>
-                  <span style={{ marginLeft: 'auto', color: theme.border }}>
+                  <span style={{ marginLeft: 'auto', color: theme.text }}>
                     {objetos.length}/{capacidad}
                   </span>
                 </div>
@@ -314,7 +317,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                           borderRadius: '6px',
                           border: `2px ${it ? 'solid' : 'dashed'} ${borde}`,
                           backgroundColor: it ? theme.cardBg : 'transparent',
-                          color: it ? theme.text : theme.border,
+                          color: theme.text,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -332,7 +335,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                                   bottom: '1px',
                                   right: '3px',
                                   fontSize: '0.65rem',
-                                  color: theme.border,
+                                  color: theme.text,
                                   lineHeight: 1,
                                 }}
                               >
@@ -390,7 +393,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>{seleccionado.nombre}</span>
             </div>
 
-            <div style={{ fontSize: '0.85rem', color: theme.border, marginBottom: '0.4rem' }}>
+            <div style={{ fontSize: '0.85rem', color: theme.text, marginBottom: '0.4rem' }}>
               Tipo: {TITULO_SECCION[seleccionado.tipo].replace(/s$/, '')}
               {seleccionado.slot_equipo && ` · ${ETIQUETA_SLOT[seleccionado.slot_equipo]}`}
               {seleccionado.rareza && (
@@ -428,7 +431,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                 )}
                 {!seleccionado.efecto?.stats?.[Object.keys(seleccionado.efecto?.stats ?? {})[0]] &&
                   !seleccionado.efecto?.pasiva &&
-                  !seleccionado.power_id && <div style={{ color: theme.border }}>Sin efecto asociado.</div>}
+                  !seleccionado.power_id && <div style={{ color: theme.text }}>Sin efecto asociado.</div>}
               </div>
             )}
 
