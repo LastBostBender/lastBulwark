@@ -18,6 +18,17 @@ interface PoderesViewProps {
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
 }
 
+interface EfectoPoder {
+  tipo: string;
+  valor: number;
+  unidad: string;
+  stat?: string;
+  target: string;
+  trigger: string;
+  duracion_turnos?: number;
+  probabilidad?: number;
+}
+
 interface Poder {
   id: number;
   nombre: string;
@@ -26,6 +37,50 @@ interface Poder {
   tier: 1 | 2;
   descripcion: string;
   icono: string;
+  parametros: { efectos: EfectoPoder[] };
+}
+
+const NOMBRE_STAT: Record<string, string> = {
+  ataque_fisico: 'ataque físico',
+  ataque_magico: 'ataque mágico',
+  defensa_fisica: 'defensa física',
+  defensa_magica: 'defensa mágica',
+  precision_stat: 'precisión',
+  escape: 'escape',
+  velocidad: 'velocidad',
+  critico: 'crítico',
+  suerte: 'suerte',
+  aleatorio: 'stat aleatorio',
+};
+
+// Convierte cada efecto del poder en una línea ±stat legible, sin tocar los
+// valores reales (son los mismos que usa el backend en combate).
+function formatearEfecto(e: EfectoPoder): string {
+  const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` (${e.duracion_turnos}t)` : '';
+  const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
+
+  switch (e.unidad) {
+    case 'porcentaje_ataque_fisico':
+    case 'porcentaje_ataque_magico':
+      return `+${e.valor}% daño`;
+    case 'porcentaje_vida_maxima':
+    case 'porcentaje_vida_actual': {
+      const signo = e.tipo === 'curacion' ? '+' : '-';
+      return `${signo}${Math.abs(e.valor)}% vida${duracion}`;
+    }
+    case 'porcentaje_dano_recibido':
+      return `+${e.valor}% contraataque`;
+    case 'porcentaje_stat':
+    case 'puntos_porcentuales': {
+      const signo = e.valor >= 0 ? '+' : '';
+      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
+      return `${signo}${e.valor}% ${stat}${duracion}${prob}`;
+    }
+    case 'turnos':
+      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}`;
+    default:
+      return '';
+  }
 }
 
 // Stat(s) con más puntos invertidos. Puede haber empate, en cuyo caso se ofrece
@@ -34,6 +89,30 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   const max = Math.max(stats.fue, stats.int, stats.agi);
   if (max === 0) return [];
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
+};
+
+const DetallePoder = ({ poder, theme }: { poder: Poder; theme: ReturnType<typeof getTheme> }) => {
+  const lineas = (poder.parametros?.efectos ?? []).map(formatearEfecto).filter(Boolean);
+  return (
+    <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
+      <p style={{ color: theme.text, marginBottom: lineas.length ? '0.5rem' : 0 }}>{poder.descripcion}</p>
+      {lineas.length > 0 && (
+        <div
+          style={{
+            borderTop: `1px solid ${theme.border}`,
+            borderBottom: `1px solid ${theme.border}`,
+            padding: '0.4rem 0',
+          }}
+        >
+          {lineas.map((linea, i) => (
+            <div key={i} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
+              {linea}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesViewProps) => {
@@ -46,7 +125,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   const cargarDatos = async () => {
     setCargando(true);
     const [catalogoRes, aprendidosRes] = await Promise.all([
-      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono'),
+      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros'),
       supabase
         .from('character_powers')
         .select('powers(nombre)')
@@ -125,7 +204,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
         </div>
 
         {cargando && (
-          <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.border }}>
+          <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>
             Cargando...
           </p>
         )}
@@ -162,33 +241,35 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
                     >
                       <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
                       <span>{poder.nombre}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.border }}>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.text }}>
                         <i className={`bi bi-${expandido ? 'chevron-up' : 'chevron-right'}`}></i>
                       </span>
                     </button>
                     {expandido && (
-                      <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', color: theme.border, fontSize: '0.9rem' }}>
-                        <p style={{ marginBottom: '0.5rem' }}>{poder.descripcion}</p>
-                        <button
-                          className="btn rounded-circle"
-                          style={{
-                            width: '2rem',
-                            height: '2rem',
-                            padding: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: theme.accent,
-                            border: `1px solid ${theme.accent}`,
-                            backgroundColor: 'transparent',
-                            opacity: aprendiendoPoder ? 0.6 : 1,
-                            cursor: aprendiendoPoder ? 'wait' : 'pointer',
-                          }}
-                          onClick={(e) => { e.stopPropagation(); aprenderPoder(poder); }}
-                        >
-                          <i className="bi bi-check-lg"></i>
-                        </button>
-                      </div>
+                      <>
+                        <DetallePoder poder={poder} theme={theme} />
+                        <div style={{ padding: '0 0.2rem 0.8rem 1.8rem' }}>
+                          <button
+                            className="btn rounded-circle"
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: theme.accent,
+                              border: `1px solid ${theme.accent}`,
+                              backgroundColor: 'transparent',
+                              opacity: aprendiendoPoder ? 0.6 : 1,
+                              cursor: aprendiendoPoder ? 'wait' : 'pointer',
+                            }}
+                            onClick={(e) => { e.stopPropagation(); aprenderPoder(poder); }}
+                          >
+                            <i className="bi bi-check-lg"></i>
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 );
@@ -226,22 +307,18 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
                 >
                   <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
                   <span>{poder.nombre}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.border }}>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.text }}>
                     <i className={`bi bi-${poderExpandido === poder.nombre ? 'chevron-up' : 'chevron-right'}`}></i>
                   </span>
                 </button>
-                {poderExpandido === poder.nombre && (
-                  <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', color: theme.border, fontSize: '0.9rem' }}>
-                    <p>{poder.descripcion}</p>
-                  </div>
-                )}
+                {poderExpandido === poder.nombre && <DetallePoder poder={poder} theme={theme} />}
               </div>
             ))}
           </div>
         )}
 
         {!cargando && poderesPendientes.length === 0 && poderesAprendidosInfo.length === 0 && (
-          <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.border, marginTop: '2rem' }}>
+          <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text, marginTop: '2rem' }}>
             Todavía no tienes poderes. Reparte puntos de talento en tu perfil para desbloquear el primero a los 4 puntos.
           </p>
         )}
