@@ -35,6 +35,7 @@ interface Combatiente {
   pm_actual: number;
   pm_max: number;
   escape: number;
+  cooldowns: Record<string, number>;
 }
 
 interface LogEntry {
@@ -231,6 +232,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
   const miCombatiente = combatientes.find((c) => c.telegram_id === perfil.telegram_id);
   const esMiTurno = !!sesion && !!miCombatiente && miCombatiente.orden === sesion.turno_actual && sesion.estado === 'en_curso';
+  const poderesDisponibles = poderes.filter((p) => !((miCombatiente?.cooldowns?.[p.id] ?? 0) > 0));
 
   const ejecutar = async (accion: 'poder' | 'golpe' | 'huir', poderId?: number, objetivoId?: number) => {
     if (!sesionId || enviando) return;
@@ -476,14 +478,16 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
               style={{
                 display: 'grid',
                 gap: '6px',
-                gridTemplateColumns: poderes.length === 3 ? '1fr' : poderes.length <= 1 ? '1fr' : '1fr 1fr',
-                gridTemplateRows: poderes.length === 3 ? '1fr 1fr 1fr' : poderes.length <= 2 ? '1fr' : '1fr 1fr',
+                gridTemplateColumns: poderesDisponibles.length === 3 ? '1fr' : poderesDisponibles.length <= 1 ? '1fr' : '1fr 1fr',
+                gridTemplateRows: poderesDisponibles.length === 3 ? '1fr 1fr 1fr' : poderesDisponibles.length <= 2 ? '1fr' : '1fr 1fr',
               }}
             >
-              {poderes.length === 0 && (
-                <div className="d-flex align-items-center justify-content-center text-secondary small">Sin poderes activos</div>
+              {poderesDisponibles.length === 0 && (
+                <div className="d-flex align-items-center justify-content-center text-secondary small">
+                  {poderes.length === 0 ? 'Sin poderes activos' : 'Todos en enfriamiento'}
+                </div>
               )}
-              {poderes.map((poder) => (
+              {poderesDisponibles.map((poder) => (
                 <button key={poder.id} disabled={enviando} onClick={() => tocarPoder(poder)} className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center">
                   <i className={`bi bi-${poder.icono ?? 'stars'} fs-5`}></i>
                   <span style={{ fontSize: '0.7rem' }}>{poder.nombre}</span>

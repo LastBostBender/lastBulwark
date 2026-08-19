@@ -38,6 +38,7 @@ interface Poder {
   descripcion: string;
   icono: string;
   parametros: { efectos: EfectoPoder[] };
+  cooldown_turnos: number | null;
 }
 
 const NOMBRE_STAT: Record<string, string> = {
@@ -56,7 +57,7 @@ const NOMBRE_STAT: Record<string, string> = {
 // Convierte cada efecto del poder en una línea ±stat legible, sin tocar los
 // valores reales (son los mismos que usa el backend en combate).
 function formatearEfecto(e: EfectoPoder): string {
-  const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` (${e.duracion_turnos}t)` : '';
+  const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
   const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
 
   switch (e.unidad) {
@@ -111,6 +112,11 @@ const DetallePoder = ({ poder, theme }: { poder: Poder; theme: ReturnType<typeof
           ))}
         </div>
       )}
+      {poder.cooldown_turnos && (
+        <div style={{ color: theme.text, opacity: 0.75, marginTop: '0.4rem', fontSize: '0.8rem' }}>
+          CD: {poder.cooldown_turnos} turno{poder.cooldown_turnos > 1 ? 's' : ''}
+        </div>
+      )}
     </div>
   );
 };
@@ -125,7 +131,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   const cargarDatos = async () => {
     setCargando(true);
     const [catalogoRes, aprendidosRes] = await Promise.all([
-      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros'),
+      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos'),
       supabase
         .from('character_powers')
         .select('powers(nombre)')
