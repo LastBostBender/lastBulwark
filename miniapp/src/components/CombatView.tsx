@@ -43,6 +43,7 @@ interface LogEntry {
   turno: number;
   descripcion: string;
   creado_en: string;
+  padre_id: number | null;
 }
 
 interface Poder {
@@ -421,11 +422,23 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         {/* Centro: log */}
         <div ref={logRef} className="flex-grow-1 overflow-auto px-2 py-2" style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)' }}>
           {log.length === 0 && <p className="text-secondary text-center mt-4">El combate está por comenzar...</p>}
-          {log.map((entrada) => (
-            <p key={entrada.id} className="mb-1">
-              <span className="text-secondary">R{entrada.turno}</span> — {entrada.descripcion}
-            </p>
-          ))}
+          {log
+            .filter((entrada) => entrada.padre_id == null)
+            .map((raiz) => {
+              const ramas = log.filter((entrada) => entrada.padre_id === raiz.id);
+              return (
+                <div key={raiz.id} className="mb-2">
+                  <p className="mb-0">
+                    <span className="text-secondary">R{raiz.turno}</span> — {raiz.descripcion}
+                  </p>
+                  {ramas.map((rama) => (
+                    <p key={rama.id} className="mb-0 ps-3" style={{ opacity: 0.85 }}>
+                      <span className="text-secondary">|-</span> {rama.descripcion}
+                    </p>
+                  ))}
+                </div>
+              );
+            })}
           {combateTerminado && (
             <h4 className="text-center mt-3" style={{ fontFamily: 'var(--font-display)' }}>
               {sesion.estado === 'victoria' ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado'}
