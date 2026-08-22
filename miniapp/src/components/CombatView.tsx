@@ -109,8 +109,11 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
       try {
         const { data: colaRow, error } = await supabase
           .from('mini_boss_queue')
-          .select('encounter_id, mini_boss_encounters(nivel_jefe)')
+          .select('encounter_id, mini_boss_encounters!inner(nivel_jefe, estado)')
           .eq('telegram_id', perfil.telegram_id)
+          .eq('mini_boss_encounters.estado', 'esperando_cola')
+          .order('unido_en', { ascending: false })
+          .limit(1)
           .abortSignal(controller.signal)
           .maybeSingle();
         if (!activo) return;
@@ -281,25 +284,25 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     return (
       <div className="d-flex flex-column vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
         <header className="py-3 px-3 text-center" style={{ backgroundColor: theme.headerBg, borderBottom: `1px solid ${theme.border}` }}>
-          <span className="fw-bold">{perfil.nombre_personaje}</span>
+          <span className="fw-bold" style={{ fontFamily: 'var(--font-display)' }}>{perfil.nombre_personaje}</span>
         </header>
-        <main className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center px-3">
+        <main className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center px-3" style={{ fontFamily: 'var(--font-body)' }}>
           {errorCola ? (
             <>
               <p className="mb-3">{errorCola}</p>
-              <button className="btn btn-outline-light" onClick={() => setIntentoCola((n) => n + 1)}>
+              <button className="btn btn-outline-light" style={{ fontFamily: 'var(--font-body)' }} onClick={() => setIntentoCola((n) => n + 1)}>
                 Reintentar
               </button>
             </>
           ) : (
             <>
               <i className="bi bi-exclamation-diamond-fill" style={{ fontSize: '3rem', color: theme.accent }}></i>
-              <h4 className="mt-3">{colaNivelJefe ? `Mini jefe de nivel ${colaNivelJefe}` : 'Buscando encuentro...'}</h4>
-              <p className="fs-4" style={{ color: theme.accent }}>{colaCount}/5</p>
+              <h4 className="mt-3" style={{ fontFamily: 'var(--font-display)' }}>{colaNivelJefe ? `Mini jefe de nivel ${colaNivelJefe}` : 'Buscando encuentro...'}</h4>
+              <p className="fs-4" style={{ color: theme.accent, fontFamily: 'var(--font-display)' }}>{colaCount}/5</p>
             </>
           )}
         </main>
-        <footer className="d-flex align-items-center justify-content-center gap-2" style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '70px' }}>
+        <footer className="d-flex align-items-center justify-content-center gap-2" style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '70px', fontFamily: 'var(--font-body)' }}>
           <i className="bi bi-arrow-repeat spin-icon fs-4" style={{ color: theme.accent }}></i>
           <span>Esperando otros...</span>
         </footer>
@@ -310,9 +313,9 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   // --- Render: en_combate ---
   if (errorCarga) {
     return (
-      <div className="d-flex flex-column align-items-center justify-content-center vh-100 text-center px-3" style={{ backgroundColor: theme.bg, color: theme.text }}>
+      <div className="d-flex flex-column align-items-center justify-content-center vh-100 text-center px-3" style={{ backgroundColor: theme.bg, color: theme.text, fontFamily: 'var(--font-body)' }}>
         <p className="mb-3">{errorCarga}</p>
-        <button className="btn btn-outline-light" onClick={() => setIntentoCombate((n) => n + 1)}>
+        <button className="btn btn-outline-light" style={{ fontFamily: 'var(--font-body)' }} onClick={() => setIntentoCombate((n) => n + 1)}>
           Reintentar
         </button>
       </div>
@@ -370,7 +373,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         <div className="d-flex align-items-center" style={{ gap: '0.6rem' }}>
           <span
             className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-            style={{ width: '34px', height: '34px', border: `2px solid ${theme.border}`, fontWeight: 'bold' }}
+            style={{ width: '34px', height: '34px', border: `2px solid ${theme.border}`, fontWeight: 'bold', fontFamily: 'var(--font-display)' }}
           >
             {sesion.ronda}
           </span>
@@ -416,7 +419,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         </div>
 
         {/* Centro: log */}
-        <div ref={logRef} className="flex-grow-1 overflow-auto px-2 py-2" style={{ fontSize: '0.9rem' }}>
+        <div ref={logRef} className="flex-grow-1 overflow-auto px-2 py-2" style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)' }}>
           {log.length === 0 && <p className="text-secondary text-center mt-4">El combate está por comenzar...</p>}
           {log.map((entrada) => (
             <p key={entrada.id} className="mb-1">
@@ -424,7 +427,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
             </p>
           ))}
           {combateTerminado && (
-            <h4 className="text-center mt-3">
+            <h4 className="text-center mt-3" style={{ fontFamily: 'var(--font-display)' }}>
               {sesion.estado === 'victoria' ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado'}
             </h4>
           )}
@@ -432,7 +435,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
       </div>
 
       {/* Footer */}
-      <footer style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '150px', padding: '8px' }}>
+      <footer style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '150px', padding: '8px', fontFamily: 'var(--font-body)' }}>
         {combateTerminado ? (
           <div className="text-center py-3">Volviendo al perfil...</div>
         ) : !esMiTurno ? (
