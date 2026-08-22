@@ -200,7 +200,19 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     const canal = supabase
       .channel(`combate-${sesionId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'combat_sesiones', filter: `id=eq.${sesionId}` },
-        (payload) => setSesion((prev) => (prev ? { ...prev, ...payload.new } : (payload.new as Sesion))))
+        (payload) => {
+          setSesion((prev) => (prev ? { ...prev, ...payload.new } : (payload.new as Sesion)));
+          // El cambio de turno puede venir junto con un recalculo de orden (nueva oleada),
+          // que llega como eventos separados de combat_combatientes. Para evitar depender
+          // de la carrera entre ambos streams, se refresca el orden real desde el servidor.
+          supabase
+            .from('combat_combatientes')
+            .select('*')
+            .eq('sesion_id', sesionId)
+            .then(({ data }) => {
+              if (data) setCombatientes(data.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)));
+            });
+        })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'combat_combatientes', filter: `sesion_id=eq.${sesionId}` },
         (payload) => {
           if (payload.eventType === 'DELETE') return;
