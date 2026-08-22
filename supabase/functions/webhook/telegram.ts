@@ -5,16 +5,48 @@ export async function sendMessage(chatId: number, text: string, replyMarkup?: an
   const payload: any = { chat_id: chatId, text, parse_mode: "HTML" };
   if (replyMarkup) payload.reply_markup = replyMarkup;
   if (threadId) payload.message_thread_id = threadId;
+
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+  let data: any = null;
   try {
-    return await res.json();
+    data = await res.json();
   } catch {
+    console.error("sendMessage: respuesta no-JSON de Telegram", { chatId, threadId, status: res.status });
     return null;
   }
+
+  if (!data?.ok) {
+    console.error("sendMessage: Telegram rechazo el mensaje", {
+      chatId, threadId, status: res.status, error: data,
+    });
+
+    // Si el fallo fue puntual del hilo (tema borrado/sin permiso), reintenta al chat general
+    // para que el aviso no se pierda del todo.
+    if (threadId) {
+      const { message_thread_id, ...sinHilo } = payload;
+      const reintento = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sinHilo),
+      });
+      try {
+        const dataReintento = await reintento.json();
+        if (!dataReintento?.ok) {
+          console.error("sendMessage: fallo tambien el reintento sin hilo", { chatId, error: dataReintento });
+        }
+        return dataReintento;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  return data;
 }
 
 export async function getChatMember(chatId: number, userId: number) {

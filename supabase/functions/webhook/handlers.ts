@@ -31,7 +31,11 @@ export async function handleVincularTemaMiniJefes(msg: any) {
     return;
   }
 
-  await vincularTemaMiniJefes(chatId, threadId);
+  const guardado = await vincularTemaMiniJefes(chatId, threadId);
+  if (!guardado) {
+    await sendMessage(chatId, "Algo falló guardando el tema. Probá de nuevo en un rato.", undefined, threadId);
+    return;
+  }
   await sendMessage(chatId, "Listo — los avisos de mini jefes van a llegar a este tema de ahora en más.", undefined, threadId);
 }
 
