@@ -55,7 +55,7 @@ export async function handleCronTick() {
   const nuevos = await generarEncuentros();
   for (const encuentro of nuevos) {
     const { text, replyMarkup } = mensajeSpawn(encuentro.nivel_jefe, encuentro.encounter_id);
-    const enviado = await sendMessage(encuentro.chat_id, text, replyMarkup);
+    const enviado = await sendMessage(encuentro.chat_id, text, replyMarkup, encuentro.topic_mini_boss_id);
     if (enviado?.result?.message_id) {
       await actualizarMensajeEncuentro(encuentro.encounter_id, enviado.result.message_id);
     }
@@ -64,14 +64,14 @@ export async function handleCronTick() {
   const resueltos = await cerrarColasVencidas();
   for (const resultado of resueltos) {
     if (resultado?.chat_id) {
-      await sendMessage(resultado.chat_id, mensajeResultado(resultado));
+      await sendMessage(resultado.chat_id, mensajeResultado(resultado), undefined, resultado.topic_mini_boss_id);
     }
   }
 
   const combatesFinalizados = await resolverCombatesFinalizados();
   for (const resultado of combatesFinalizados) {
     if (resultado?.chat_id) {
-      await sendMessage(resultado.chat_id, mensajeResultadoCombate(resultado));
+      await sendMessage(resultado.chat_id, mensajeResultadoCombate(resultado), undefined, resultado.topic_mini_boss_id);
     }
   }
 }
@@ -104,7 +104,12 @@ export async function handleCallbackQuery(callbackQuery: any) {
 
   if (resultado.cerrado) {
     await answerCallbackQuery(callbackId, "¡Cola completa! El combate va a comenzar.");
-    await sendMessage(callbackQuery.message?.chat?.id, mensajeResultado(resultado.resultado));
+    await sendMessage(
+      callbackQuery.message?.chat?.id,
+      mensajeResultado(resultado.resultado),
+      undefined,
+      resultado.resultado?.topic_mini_boss_id
+    );
   } else {
     await answerCallbackQuery(callbackId, `Te uniste (${resultado.participantes}/5).`);
   }

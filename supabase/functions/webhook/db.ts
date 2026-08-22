@@ -52,7 +52,7 @@ export async function registrarActividadGrupo(telegramId: number, chatId: number
   }
 }
 
-export async function generarEncuentros(): Promise<Array<{ encounter_id: number; chat_id: number; nivel_jefe: number }>> {
+export async function generarEncuentros(): Promise<Array<{ encounter_id: number; chat_id: number; nivel_jefe: number; topic_mini_boss_id: number | null }>> {
   const url = `${SUPABASE_URL}/rest/v1/rpc/mb_generar_encuentros`;
   const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
   if (!res.ok) {
@@ -96,6 +96,20 @@ export async function resolverCombatesFinalizados(): Promise<any[]> {
   }
   const data = await res.json();
   return (Array.isArray(data) ? data : []).map((row: any) => row?.mb_resolver_combates_finalizados ?? row);
+}
+
+export async function vincularTemaMiniJefes(chatId: number, threadId: number) {
+  const url = `${SUPABASE_URL}/rest/v1/authorized_groups?chat_id=eq.${chatId}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { ...SB_HEADERS_JSON, Prefer: "return=minimal" },
+    body: JSON.stringify({ topic_mini_boss_id: threadId }),
+  });
+  if (!res.ok) {
+    console.error("Error vinculando tema de mini jefes:", await res.text());
+    return false;
+  }
+  return true;
 }
 
 export async function actualizarMensajeEncuentro(encounterId: number, mensajeId: number) {
