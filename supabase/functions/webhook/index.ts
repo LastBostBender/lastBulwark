@@ -1,4 +1,4 @@
-﻿import { handleStart, handleGroupMessage } from "./handlers.ts";
+﻿import { handleStart, handleGroupMessage, handleVincularTemaMiniJefes, handleForumTopicEvent } from "./handlers.ts";
 import { handleCronTick, handleCallbackQuery } from "./miniboss.ts";
 
 Deno.serve(async (req) => {
@@ -25,6 +25,12 @@ Deno.serve(async (req) => {
     }
 
     const msg = update.message;
+
+    if (msg && (msg.forum_topic_created || msg.forum_topic_edited)) {
+      await handleForumTopicEvent(msg);
+      return new Response("OK", { status: 200 });
+    }
+
     if (!msg || !msg.text) return new Response("OK", { status: 200 });
 
     const chatId = msg.chat.id;
@@ -32,6 +38,8 @@ Deno.serve(async (req) => {
 
     if (text === "/start") {
       await handleStart(chatId);
+    } else if (text.startsWith("/tema_minijefes") && msg.chat.type === "supergroup") {
+      await handleVincularTemaMiniJefes(msg);
     } else if (
       !text.startsWith("/") &&
       (msg.chat.type === "group" || msg.chat.type === "supergroup")
