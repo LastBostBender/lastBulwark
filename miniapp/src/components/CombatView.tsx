@@ -20,6 +20,7 @@ interface Sesion {
   ronda: number;
   oleada_actual: number;
   oleadas: Array<{ numero: number; enemigos?: number; jefe?: boolean }>;
+  votacion_huida: boolean;
 }
 
 interface Combatiente {
@@ -167,7 +168,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
       setErrorCarga(null);
       try {
         const [sesionRes, combatientesRes, logRes, poderesRes] = await Promise.all([
-          supabase.from('combat_sesiones').select('id, estado, turno_actual, ronda, oleada_actual, oleadas').eq('id', sesionId).abortSignal(controller.signal).single(),
+          supabase.from('combat_sesiones').select('id, estado, turno_actual, ronda, oleada_actual, oleadas, votacion_huida').eq('id', sesionId).abortSignal(controller.signal).single(),
           supabase.from('combat_combatientes').select('*').eq('sesion_id', sesionId).order('orden').abortSignal(controller.signal),
           supabase.from('combat_log').select('*').eq('sesion_id', sesionId).order('creado_en', { ascending: true }).limit(50).abortSignal(controller.signal),
           supabase.from('character_powers').select('powers(id, nombre, icono, parametros, tipo)').eq('telegram_id', perfil.telegram_id).abortSignal(controller.signal),
@@ -250,7 +251,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   const esMiTurno = !!sesion && !!miCombatiente && miCombatiente.orden === sesion.turno_actual && sesion.estado === 'en_curso';
   const poderesDisponibles = poderes.filter((p) => !((miCombatiente?.cooldowns?.[p.id] ?? 0) > 0));
 
-  const ejecutar = async (accion: 'poder' | 'golpe' | 'huir', poderId?: number, objetivoId?: number) => {
+  const ejecutar = async (accion: 'poder' | 'golpe' | 'huir' | 'votar_huida', poderId?: number, objetivoId?: number, voto?: boolean) => {
     if (!sesionId || enviando) return;
     setEnviando(true);
     const { data, error } = await supabase.rpc('combat_ejecutar_accion', {
@@ -259,6 +260,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
       p_accion: accion,
       p_power_id: poderId ?? null,
       p_objetivo_id: objetivoId ?? null,
+      p_voto: voto ?? null,
     });
     setEnviando(false);
     if (error || !data?.ok) {
@@ -451,9 +453,35 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
       <footer style={{ backgroundColor: theme.footerBg, borderTop: `1px solid ${theme.border}`, minHeight: '150px', padding: '8px', fontFamily: 'var(--font-body)' }}>
         {combateTerminado ? (
           <div className="text-center py-3">Volviendo al perfil...</div>
+        ) : sesion.votacion_huida && esMiTurno ? (
+          <div className="d-flex flex-column align-items-center justify-content-center h-100 gap-3 py-2 text-center">
+            <span>¿Quieres huir del combate, cristalito?</span>
+            <div className="d-flex gap-3">
+              <button
+                disabled={enviando}
+                onClick={() => ejecutar('votar_huida', undefined, undefined, false)}
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                style={{ width: '3rem', height: '3rem', border: `1px solid ${theme.text}`, color: theme.text, backgroundColor: 'transparent' }}
+                title="No huir"
+              >
+                <i className="bi bi-x-lg fs-5"></i>
+              </button>
+              <button
+                disabled={enviando}
+                onClick={() => ejecutar('votar_huida', undefined, undefined, true)}
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                style={{ width: '3rem', height: '3rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                title="Huir"
+              >
+                <i className="bi bi-check-lg fs-5"></i>
+              </button>
+            </div>
+          </div>
         ) : !esMiTurno ? (
           <div className="d-flex align-items-center justify-content-center h-100 gap-2 py-4">
-            <span className="text-secondary">Turno de {vivos.find((c) => c.orden === sesion.turno_actual)?.nombre ?? '...'}</span>
+            <span className="text-secondary">
+              {sesion.votacion_huida ? 'Votación de huida en curso...' : `Turno de ${vivos.find((c) => c.orden === sesion.turno_actual)?.nombre ?? '...'}`}
+            </span>
           </div>
         ) : accionActiva ? (
           // --- Selección de objetivo ---
