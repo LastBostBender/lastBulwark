@@ -15,6 +15,7 @@ interface ProfileViewProps {
     int: number;
     agi: number;
     energia: number;
+    energia_max: number;
     ps_max: number;
     pm_max: number;
     ps_actual: number;
@@ -130,8 +131,30 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     }
   };
 
+  const regenerarEnergia = async () => {
+    const { data, error } = await supabase
+      .rpc('regenerar_energia', { p_telegram_id: perfil.telegram_id })
+      .single();
+    if (error) {
+      console.error('Error regenerando energía:', error);
+      return;
+    }
+    if (data) {
+      setProfile((prev) => {
+        const actualizado = {
+          ...prev,
+          energia: (data as any).energia,
+          energia_max: (data as any).energia_max,
+        };
+        onProfileChange?.(actualizado);
+        return actualizado;
+      });
+    }
+  };
+
   useEffect(() => {
     regenerarRecursos();
+    regenerarEnergia();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perfil.telegram_id]);
 
@@ -248,7 +271,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
 
   const psPorcentaje = Math.min(100, (psActual / psMax) * 100);
   const pmPorcentaje = Math.min(100, (pmActual / pmMax) * 100);
-  const energiaPorcentaje = Math.min(100, (profile.energia / 5) * 100);
+  const energiaPorcentaje = Math.min(100, (profile.energia / Math.max(1, profile.energia_max)) * 100);
   const xpPorcentaje = Math.min(100, (xpEnEsteNivel / xpParaSubir) * 100);
 
   const mostrarBotones = puntosDisponibles > 0 && !hayPoderPendiente;
@@ -305,7 +328,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
           </div>
           <div className="col-6">
             <div className="d-flex justify-content-between text-nowrap">
-              <span><i className="bi bi-lightning-charge text-warning"></i> {profile.energia}/5</span>
+              <span><i className="bi bi-lightning-charge text-warning"></i> {profile.energia}/{profile.energia_max}</span>
             </div>
             <div className="progress-custom">
               <div className="bar bg-warning" style={{ width: `${energiaPorcentaje}%` }}></div>

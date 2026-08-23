@@ -96,6 +96,7 @@ export async function handleCallbackQuery(callbackQuery: any) {
       nivel_fuera_de_rango: "Tu nivel no encaja con este mini jefe.",
       ya_unido: "Ya estás en la cola.",
       cola_llena: "La cola ya está llena (5/5).",
+      sin_energia: "Te quedaste sin energía. Se regenera 1 por hora — volvé en un rato.",
       error_interno: "Algo falló. Intenta de nuevo.",
     };
     await answerCallbackQuery(callbackId, mensajes[resultado.motivo] ?? "No se pudo unir.", true);
