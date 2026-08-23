@@ -49,17 +49,28 @@ export async function handleForumTopicEvent(msg: any) {
   await vincularTemaMiniJefes(msg.chat.id, threadId);
 }
 
+const BIENVENIDAS_REGISTRADO = [
+  'Ah, volviste. 67 tampoco esperaba mucho.',
+  '67 no pregunta cómo estás. 67 no pregunta nada. Bienvenido de nuevo.',
+  'Tu personaje sigue ahí, fingiendo que te extrañó.',
+  'Otra vez por aquí. Ni el propio bot entiende por qué sigue funcionando, pero en fin, continuemos.',
+  'Estado emocional de 67 al verte: el mismo gesto de manos que no significa nada. Bienvenido.',
+  'Cargando... nada en particular. Solo bienvenido, de nuevo, a 67.',
+  'Detectada actividad humana. Nivel de entusiasmo: 67. Es decir, ninguno.',
+];
+
 export async function handleStart(chatId: number) {
   const registrado = await isRegistered(chatId);
   if (registrado) {
-    await sendMessage(chatId, "Bienvenido de nuevo al Último Bastión.", {
-      inline_keyboard: [[{ text: "Abrir Mini App", web_app: { url: MINI_APP_URL } }]],
+    const texto = BIENVENIDAS_REGISTRADO[Math.floor(Math.random() * BIENVENIDAS_REGISTRADO.length)];
+    await sendMessage(chatId, texto, {
+      inline_keyboard: [[{ text: 'Abrir Mini App', web_app: { url: MINI_APP_URL } }]],
     });
   } else {
     await sendMessage(
       chatId,
-      "Bienvenido al Último Bastión. Aún no estás registrado. Abre la Mini App para registrarte.",
-      { inline_keyboard: [[{ text: "Registrarme", web_app: { url: MINI_APP_URL } }]] }
+      'Bienvenido a 67. No preguntes qué significa, ni nosotros lo sabemos. Lo único seguro es que si no te registras ahora, vas a quedarte viendo cómo suben de nivel los demás mientras tú sigues en cero. ¿Entramos?',
+      { inline_keyboard: [[{ text: 'Registrarme', web_app: { url: MINI_APP_URL } }]] }
     );
   }
 }
