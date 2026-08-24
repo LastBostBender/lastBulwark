@@ -102,6 +102,11 @@ function getTelegramId(propId?: number): number | null {
   return w?.Telegram?.WebApp?.initDataUnsafe?.user?.id ?? null;
 }
 
+function getTelegramUsername(): string | null {
+  const w = window as any;
+  return w?.Telegram?.WebApp?.initDataUnsafe?.user?.username ?? null;
+}
+
 export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps) => {
   const [paso, setPaso] = useState<Paso>('inicio');
   const [zonaActiva, setZonaActiva] = useState<ZonaInfo | null>(null);
@@ -151,7 +156,7 @@ export const OnboardingFlow = ({ telegramId, onCompletado }: OnboardingFlowProps
 
     const { data, error } = await supabase
       .from('profiles')
-      .insert({ telegram_id: id, nombre_personaje: nombre, zona: zonaActiva.id })
+      .insert({ telegram_id: id, nombre_personaje: nombre, zona: zonaActiva.id, username: getTelegramUsername() })
       .select()
       .single();
 

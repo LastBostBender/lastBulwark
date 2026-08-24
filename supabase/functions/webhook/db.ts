@@ -52,7 +52,7 @@ export async function registrarActividadGrupo(telegramId: number, chatId: number
   }
 }
 
-export async function generarEncuentros(): Promise<Array<{ encounter_id: number; chat_id: number; nivel_jefe: number; topic_mini_boss_id: number | null }>> {
+export async function generarEncuentros(): Promise<Array<{ encounter_id: number; chat_id: number; nivel_jefe: number; topic_mini_boss_id: number | null; nombre_jefe: string | null; total_oleadas: number }>> {
   const url = `${SUPABASE_URL}/rest/v1/rpc/mb_generar_encuentros`;
   const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
   if (!res.ok) {

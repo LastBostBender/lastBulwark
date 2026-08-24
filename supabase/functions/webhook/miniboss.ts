@@ -1,13 +1,60 @@
-import { sendMessage, answerCallbackQuery } from "./telegram.ts";
+import { sendMessage, editMessageText, answerCallbackQuery } from "./telegram.ts";
 import { generarEncuentros, cerrarColasVencidas, unirseCola, actualizarMensajeEncuentro, resolverCombatesFinalizados } from "./db.ts";
 
-function mensajeSpawn(nivelJefe: number, encounterId: number) {
+const INTROS_INVITACION = [
+  "Alguien reportó una incidencia. La incidencia tiene forma humana y muy mal humor.",
+  "El sistema detectó una amenaza. El sistema también detecta el WiFi del vecino, así que no le crean tanto.",
+  "Se filtró a la sala de espera. Nadie sabe cómo entró, pero ya está pidiendo hablar con el gerente.",
+];
+
+function nombreJugador(p: { nombre?: string; telegram_id?: number }): string {
+  const nombre = p.nombre ?? "alguien";
+  if (p.telegram_id) {
+    return `<a href="tg://user?id=${p.telegram_id}">${nombre}</a>`;
+  }
+  return nombre;
+}
+
+function bloqueListaEspera(lista: Array<{ nombre: string; telegram_id?: number }>): string {
+  if (!lista || lista.length === 0) {
+    return "En lista de espera: nadie se animó todavía.";
+  }
+  return "En lista de espera:\n" + lista.map((p) => `• ${nombreJugador(p)}`).join("\n");
+}
+
+function mensajeSpawn(nombreJefe: string, nivelJefe: number, totalOleadas: number, encounterId: number, lista: Array<{ nombre: string; telegram_id?: number }> = []) {
+  const intro = INTROS_INVITACION[Math.floor(Math.random() * INTROS_INVITACION.length)];
+  const text =
+    `${intro}\n\n` +
+    `Jefe: ${nombreJefe}\n` +
+    `Nivel: ${nivelJefe}\n` +
+    `Resolver en: ${totalOleadas} oleadas\n\n` +
+    bloqueListaEspera(lista);
+
   return {
-    text: `⚔️ Un mini jefe de nivel ${nivelJefe} ha aparecido. Únete antes de que se vaya (máx. 5, se cierra en 5 minutos o al llenarse).`,
+    text,
     replyMarkup: {
-      inline_keyboard: [[{ text: "⚔️ Unirme", callback_data: `mb_join:${encounterId}` }]],
+      inline_keyboard: [[{ text: "⚔️ Machacar", callback_data: `mb_join:${encounterId}` }]],
     },
   };
+}
+
+const CANCELADO_VACIO = [
+  "El jefe esperó, revisó su reloj, y se fue. 67 no perdona la impuntualidad ajena, solo la propia.",
+  "Nadie se presentó. El jefe lo tomó personal y se retiró a rumiarlo en otro chat.",
+];
+
+const CANCELADO_POCOS = [
+  "participantes de 5 nada más? El jefe hizo cuentas, no le convenció el resultado, y se fue caminando. Consigan refuerzos.",
+  "de 5. El jefe los miró, calculó el riesgo laboral, y decidió que hoy no. Vuelvan con más gente.",
+];
+
+function mensajeCancelado(nivelJefe: number, participantes: number): string {
+  if (participantes === 0) {
+    return CANCELADO_VACIO[Math.floor(Math.random() * CANCELADO_VACIO.length)];
+  }
+  const texto = CANCELADO_POCOS[Math.floor(Math.random() * CANCELADO_POCOS.length)];
+  return `¿${participantes} ${texto}`;
 }
 
 function mensajeResultado(resultado: any): string {
@@ -15,11 +62,7 @@ function mensajeResultado(resultado: any): string {
   const nivelJefe = resultado?.nivel_jefe;
 
   if (estado === "cancelado") {
-    const participantes = resultado?.participantes ?? 0;
-    if (participantes === 0) {
-      return `El mini jefe de nivel ${nivelJefe} esperó 5 minutos y ni un alma se apareció. Se fue ofendido.`;
-    }
-    return `¿${participantes} de 5 nada más? El mini jefe de nivel ${nivelJefe} los miró, calculó sus posibilidades y se fue caminando. Consigan refuerzos.`;
+    return mensajeCancelado(nivelJefe, resultado?.participantes ?? 0);
   }
 
   if (estado === "iniciado") {
@@ -54,8 +97,18 @@ function mensajeResultadoCombate(resultado: any): string {
 export async function handleCronTick() {
   const nuevos = await generarEncuentros();
   for (const encuentro of nuevos) {
-    const { text, replyMarkup } = mensajeSpawn(encuentro.nivel_jefe, encuentro.encounter_id);
-    const enviado = await sendMessage(encuentro.chat_id, text, replyMarkup, encuentro.topic_mini_boss_id);
+    const { text, replyMarkup } = mensajeSpawn(
+      encuentro.nombre_jefe ?? "Enemigo desconocido",
+      encuentro.nivel_jefe,
+      encuentro.total_oleadas ?? 3,
+      encuentro.encounter_id
+    );
+    const enviado = await sendMessage(
+      encuentro.chat_id,
+      text,
+      replyMarkup,
+      encuentro.topic_mini_boss_id
+    );
     if (enviado?.result?.message_id) {
       await actualizarMensajeEncuentro(encuentro.encounter_id, enviado.result.message_id);
     }
@@ -63,9 +116,13 @@ export async function handleCronTick() {
 
   const resueltos = await cerrarColasVencidas();
   for (const resultado of resueltos) {
-    if (resultado?.chat_id) {
-      await sendMessage(resultado.chat_id, mensajeResultado(resultado), undefined, resultado.topic_mini_boss_id);
+    if (!resultado?.chat_id) continue;
+
+    if (resultado.estado === "cancelado" && resultado.mensaje_id) {
+      await editMessageText(resultado.chat_id, resultado.mensaje_id, mensajeResultado(resultado));
     }
+
+    await sendMessage(resultado.chat_id, mensajeResultado(resultado), undefined, resultado.topic_mini_boss_id);
   }
 
   const combatesFinalizados = await resolverCombatesFinalizados();
@@ -92,7 +149,7 @@ export async function handleCallbackQuery(callbackQuery: any) {
   if (!resultado.ok) {
     const mensajes: Record<string, string> = {
       cerrado: "Este mini jefe ya no acepta más gente.",
-      no_registrado: "Primero regístrate en la Mini App.",
+      no_registrado: "Primero registrate en la Mini App.",
       nivel_fuera_de_rango: "Tu nivel no encaja con este mini jefe.",
       ya_unido: "Ya estás en la cola.",
       cola_llena: "La cola ya está llena (5/5).",
@@ -103,15 +160,32 @@ export async function handleCallbackQuery(callbackQuery: any) {
     return;
   }
 
+  const chatId = callbackQuery.message?.chat?.id;
+  const mensajeOriginalId = callbackQuery.message?.message_id;
+
   if (resultado.cerrado) {
+    if (mensajeOriginalId) {
+      await editMessageText(chatId, mensajeOriginalId, mensajeResultado(resultado.resultado));
+    }
     await answerCallbackQuery(callbackId, "¡Cola completa! El combate va a comenzar.");
     await sendMessage(
-      callbackQuery.message?.chat?.id,
+      chatId,
       mensajeResultado(resultado.resultado),
       undefined,
       resultado.resultado?.topic_mini_boss_id
     );
   } else {
+    if (mensajeOriginalId && callbackQuery.message?.text) {
+      // Reconstruye el mensaje original con la lista de espera actualizada, manteniendo
+      // el mismo intro/jefe/nivel (van antes del bloque de lista en el texto original).
+      const textoOriginal: string = callbackQuery.message.text;
+      const corte = textoOriginal.indexOf("En lista de espera");
+      const encabezado = corte >= 0 ? textoOriginal.slice(0, corte).trimEnd() : textoOriginal;
+      const nuevoTexto = `${encabezado}\n\n${bloqueListaEspera(resultado.lista_espera ?? [])}`;
+      await editMessageText(chatId, mensajeOriginalId, nuevoTexto, {
+        inline_keyboard: [[{ text: "⚔️ Machacar", callback_data: `mb_join:${encounterId}` }]],
+      });
+    }
     await answerCallbackQuery(callbackId, `Te uniste (${resultado.participantes}/5).`);
   }
 }

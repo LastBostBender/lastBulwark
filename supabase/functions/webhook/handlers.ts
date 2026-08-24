@@ -12,10 +12,6 @@ async function esAdministrador(chatId: number, userId: number): Promise<boolean>
   return status === "administrator" || status === "creator";
 }
 
-// Comando manual: se manda DENTRO del tema que se quiere usar para los avisos de
-// mini jefes. Existe porque el Bot API no tiene forma de listar los temas de un
-// foro ni de encontrarlos por nombre — solo puede leer message_thread_id del
-// update en el que llega. Cubre temas creados antes de que el bot escuchara.
 export async function handleVincularTemaMiniJefes(msg: any) {
   const chatId = msg.chat.id;
   const threadId = msg.message_thread_id;
@@ -39,8 +35,6 @@ export async function handleVincularTemaMiniJefes(msg: any) {
   await sendMessage(chatId, "Listo — los avisos de mini jefes van a llegar a este tema de ahora en más.", undefined, threadId);
 }
 
-// Detección pasiva: si en el futuro se crea o renombra un tema a "Mini jefes"/
-// "Mini boss" mientras el bot ya está en el grupo, se vincula solo, sin comando.
 export async function handleForumTopicEvent(msg: any) {
   const nombre: string | undefined = msg.forum_topic_created?.name ?? msg.forum_topic_edited?.name;
   const threadId = msg.message_thread_id;
