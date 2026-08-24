@@ -80,6 +80,13 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   const theme = getTheme(perfil.zona);
   const sesionId = perfil.sesion_combate_id;
 
+  // Aplica las fuentes de zona al montar, por si el jugador llegó directo a
+  // en_cola/en_combate sin pasar por Registro (donde se setean normalmente).
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-display', theme.fontDisplay);
+    document.documentElement.style.setProperty('--font-body', theme.fontBody);
+  }, [theme.fontDisplay, theme.fontBody]);
+
   // --- Estado: en_cola ---
   const [colaEncounterId, setColaEncounterId] = useState<number | null>(null);
   const [colaNivelJefe, setColaNivelJefe] = useState<number | null>(null);
