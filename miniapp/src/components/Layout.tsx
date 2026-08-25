@@ -13,7 +13,7 @@ interface LayoutProps {
   onNavigate?: (vista: Vista) => void;
 }
 
-const HEADER_HEIGHT = 72; // altura fija: siempre reserva espacio para 2 líneas
+const HEADER_MIN_HEIGHT = 72; // piso: nunca reserva menos que esto (caso de 2 líneas)
 
 export const Layout = ({
   children,
@@ -25,11 +25,31 @@ export const Layout = ({
   onNavigate
 }: LayoutProps) => {
   const theme = getTheme(zona || null);
+  const headerRef = React.useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = React.useState(HEADER_MIN_HEIGHT);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--font-display', theme.fontDisplay);
     document.documentElement.style.setProperty('--font-body', theme.fontBody);
   }, [theme.fontDisplay, theme.fontBody]);
+
+  // El header puede crecer a 3+ líneas si el nombre de la clase es largo.
+  // En vez de una altura fija, medimos el header real y ajustamos el
+  // padding del contenido para que nunca quede tapado.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const actualizarAltura = () => {
+      setHeaderHeight(Math.max(HEADER_MIN_HEIGHT, el.offsetHeight));
+    };
+
+    actualizarAltura();
+
+    const observer = new ResizeObserver(actualizarAltura);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nombre, clase, nivel]);
 
   const colorTab = (vista: Vista) =>
     vistaActual === vista ? theme.accent : theme.text;
@@ -45,24 +65,24 @@ export const Layout = ({
         color: theme.text
       }}
     >
-      {/* Header fijo - altura constante, siempre reserva 2 líneas */}
+      {/* Header fijo - altura dinámica, crece si el contenido necesita más de 2 líneas */}
       <header
-        className="fixed-top px-3 d-flex align-items-center justify-content-center flex-wrap"
+        ref={headerRef}
+        className="fixed-top px-3 py-2 d-flex align-items-center justify-content-center flex-wrap"
         style={{
           backgroundColor: theme.headerBg,
           borderBottom: `1px solid ${theme.border}`,
           zIndex: 10,
-          height: `${HEADER_HEIGHT}px`,
+          minHeight: `${HEADER_MIN_HEIGHT}px`,
           lineHeight: 1.2,
-          textAlign: 'center',
-          overflow: 'hidden'
+          textAlign: 'center'
         }}
       >
         <span
           className="fw-bold me-2"
           style={{
             color: theme.text,
-            maxWidth: '45%',
+            maxWidth: '100%',
             overflowWrap: 'anywhere'
           }}
         >
@@ -79,7 +99,7 @@ export const Layout = ({
         <span
           style={{
             color: theme.text,
-            maxWidth: '45%',
+            maxWidth: '100%',
             overflowWrap: 'anywhere'
           }}
         >
@@ -109,7 +129,7 @@ export const Layout = ({
       <main
         className="flex-grow-1 overflow-auto px-3"
         style={{
-          paddingTop: `${HEADER_HEIGHT + 8}px`,
+          paddingTop: `${headerHeight + 8}px`,
           paddingBottom: '80px',
           marginBottom: '0',
           backgroundColor: theme.bg,
