@@ -184,7 +184,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   const tiersYaElegidos = new Set(poderesAprendidosInfo.map((p) => p.tier));
 
   const poderesPendientes: Poder[] = catalogo.filter((p) => {
-    if (perfil.clase !== 'Marginado') return false;
+    if (perfil.clase !== 'NPC consciente') return false;
     if (aprendidos.includes(p.nombre)) return false;
     // Solo se elige 1 poder por tier: si ya aprendió alguno de este tier
     // (aunque haya sido de otro stat empatado), el resto deja de ofrecerse.
