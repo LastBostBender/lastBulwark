@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
 import { getTheme } from '../utils/themes';
 
 type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
@@ -13,6 +13,8 @@ interface LayoutProps {
   onNavigate?: (vista: Vista) => void;
 }
 
+const HEADER_HEIGHT = 72; // altura fija: siempre reserva espacio para 2 líneas
+
 export const Layout = ({
   children,
   nombre,
@@ -24,36 +26,10 @@ export const Layout = ({
 }: LayoutProps) => {
   const theme = getTheme(zona || null);
 
-  const headerRef = useRef<HTMLElement | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(56);
-
   useEffect(() => {
     document.documentElement.style.setProperty('--font-display', theme.fontDisplay);
     document.documentElement.style.setProperty('--font-body', theme.fontBody);
   }, [theme.fontDisplay, theme.fontBody]);
-
-  useEffect(() => {
-    const medirHeader = () => {
-      if (headerRef.current) {
-        setHeaderHeight(headerRef.current.getBoundingClientRect().height);
-      }
-    };
-
-    medirHeader();
-
-    const observer = new ResizeObserver(medirHeader);
-
-    if (headerRef.current) {
-      observer.observe(headerRef.current);
-    }
-
-    window.addEventListener('resize', medirHeader);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', medirHeader);
-    };
-  }, [nombre, clase, nivel]);
 
   const colorTab = (vista: Vista) =>
     vistaActual === vista ? theme.accent : theme.text;
@@ -69,19 +45,17 @@ export const Layout = ({
         color: theme.text
       }}
     >
-      {/* Header fijo */}
+      {/* Header fijo - altura constante, siempre reserva 2 líneas */}
       <header
-        ref={headerRef}
         className="fixed-top px-3 d-flex align-items-center justify-content-center flex-wrap"
         style={{
           backgroundColor: theme.headerBg,
           borderBottom: `1px solid ${theme.border}`,
           zIndex: 10,
-          minHeight: '56px',
-          paddingTop: '8px',
-          paddingBottom: '8px',
+          height: `${HEADER_HEIGHT}px`,
           lineHeight: 1.2,
-          textAlign: 'center'
+          textAlign: 'center',
+          overflow: 'hidden'
         }}
       >
         <span
@@ -135,7 +109,7 @@ export const Layout = ({
       <main
         className="flex-grow-1 overflow-auto px-3"
         style={{
-          paddingTop: `${headerHeight + 8}px`,
+          paddingTop: `${HEADER_HEIGHT + 8}px`,
           paddingBottom: '80px',
           marginBottom: '0',
           backgroundColor: theme.bg,
