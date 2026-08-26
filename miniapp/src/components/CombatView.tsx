@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { getTheme } from '../utils/themes';
 
@@ -45,7 +45,18 @@ interface LogEntry {
   descripcion: string;
   creado_en: string;
   padre_id: number | null;
+  combatiente_id: number | null;
 }
+
+interface Grupo {
+  raiz: LogEntry;
+  ramas: LogEntry[];
+}
+
+const DEMORA_JUGADOR_MIN = 750;
+const DEMORA_JUGADOR_MAX = 1000;
+const DEMORA_ENEMIGO = 3000;
+const DEMORA_DEFECTO = 1000; // sin actor identificado (p.ej. eventos de sistema)
 
 interface Poder {
   id: number;
@@ -103,6 +114,13 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   const [poderSeleccionado, setPoderSeleccionado] = useState<Poder | null>(null);
   const [accionArma, setAccionArma] = useState(false); // true = eligiendo objetivo para "golpe con arma"
   const logRef = useRef<HTMLDivElement>(null);
+
+  // --- Revelación escalonada del log, agrupada por acción (raíz + sus ramas) ---
+  const [gruposVisibles, setGruposVisibles] = useState<Grupo[]>([]);
+  const colaGruposRef = useRef<Grupo[]>([]);
+  const procesandoGruposRef = useRef(false);
+  const gruposVistosRef = useRef<Set<number>>(new Set());
+  const cargaInicialLogRef = useRef(true);
 
   // Cargar cola (mientras estado === 'en_cola')
   const [errorCola, setErrorCola] = useState<string | null>(null);
@@ -248,9 +266,56 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     setAccionArma(false);
   }, [sesion?.turno_actual, sesion?.ronda]);
 
+  // Agrupa el log crudo en unidades de acción: cada raíz (padre_id null) con sus ramas.
+  const grupos = useMemo<Grupo[]>(() => {
+    return log
+      .filter((entrada) => entrada.padre_id == null)
+      .map((raiz) => ({
+        raiz,
+        ramas: log.filter((entrada) => entrada.padre_id === raiz.id),
+      }));
+  }, [log]);
+
+  // Procesa la cola de grupos pendientes de a uno, espaciados según quién actuó:
+  // 0.75-1s si fue un jugador, 3s si fue un enemigo (da tiempo a leer el golpe).
+  const procesarColaGrupos = () => {
+    const siguiente = colaGruposRef.current.shift();
+    if (!siguiente) {
+      procesandoGruposRef.current = false;
+      return;
+    }
+    procesandoGruposRef.current = true;
+    setGruposVisibles((prev) => [...prev, siguiente]);
+    const actor = combatientes.find((c) => c.id === siguiente.raiz.combatiente_id);
+    const demora =
+      actor?.tipo === 'jugador'
+        ? DEMORA_JUGADOR_MIN + Math.random() * (DEMORA_JUGADOR_MAX - DEMORA_JUGADOR_MIN)
+        : actor?.tipo === 'enemigo'
+          ? DEMORA_ENEMIGO
+          : DEMORA_DEFECTO;
+    setTimeout(procesarColaGrupos, demora);
+  };
+
+  useEffect(() => {
+    if (grupos.length === 0) return;
+    if (cargaInicialLogRef.current) {
+      // El historial ya ocurrido se muestra de una sola vez al entrar/recargar;
+      // el ritmo escalonado solo aplica a lo que sucede en vivo de aquí en más.
+      cargaInicialLogRef.current = false;
+      grupos.forEach((g) => gruposVistosRef.current.add(g.raiz.id));
+      setGruposVisibles(grupos);
+      return;
+    }
+    const nuevos = grupos.filter((g) => !gruposVistosRef.current.has(g.raiz.id));
+    if (nuevos.length === 0) return;
+    nuevos.forEach((g) => gruposVistosRef.current.add(g.raiz.id));
+    colaGruposRef.current.push(...nuevos);
+    if (!procesandoGruposRef.current) procesarColaGrupos();
+  }, [grupos]);
+
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [log]);
+  }, [gruposVisibles]);
 
   if (!sesionId && perfil.estado !== 'en_cola') return null;
 
@@ -431,23 +496,18 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         {/* Centro: log */}
         <div ref={logRef} className="flex-grow-1 overflow-auto px-2 py-2" style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)' }}>
           {log.length === 0 && <p className="text-secondary text-center mt-4">El combate está por comenzar...</p>}
-          {log
-            .filter((entrada) => entrada.padre_id == null)
-            .map((raiz) => {
-              const ramas = log.filter((entrada) => entrada.padre_id === raiz.id);
-              return (
-                <div key={raiz.id} className="mb-2">
-                  <p className="mb-0">
-                    <span className="text-secondary">R{raiz.turno}</span> — {raiz.descripcion}
-                  </p>
-                  {ramas.map((rama) => (
-                    <p key={rama.id} className="mb-0 ps-3" style={{ opacity: 0.85 }}>
-                      <span className="text-secondary">|-</span> {rama.descripcion}
-                    </p>
-                  ))}
-                </div>
-              );
-            })}
+          {gruposVisibles.map(({ raiz, ramas }) => (
+            <div key={raiz.id} className="mb-2">
+              <p className="mb-0">
+                <span className="text-secondary">R{raiz.turno}</span> — {raiz.descripcion}
+              </p>
+              {ramas.map((rama) => (
+                <p key={rama.id} className="mb-0 ps-3" style={{ opacity: 0.85 }}>
+                  <span className="text-secondary">|-</span> {rama.descripcion}
+                </p>
+              ))}
+            </div>
+          ))}
           {combateTerminado && (
             <h4 className="text-center mt-3" style={{ fontFamily: 'var(--font-display)' }}>
               {sesion.estado === 'victoria' ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado'}
