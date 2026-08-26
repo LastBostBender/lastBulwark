@@ -54,31 +54,57 @@ const NOMBRE_STAT: Record<string, string> = {
   aleatorio: 'stat aleatorio',
 };
 
+// Etiqueta de a quién le llega el efecto. Cubre los valores de `target` que
+// existen hoy en la tabla powers; si aparece uno nuevo, se muestra tal cual
+// en vez de desaparecer en silencio.
+const NOMBRE_TARGET: Record<string, string> = {
+  self: 'ti',
+  enemigo: 'enemigo',
+  todos_enemigos: 'todos los enemigos',
+  todos_aliados: 'todos los aliados',
+  aliado_objetivo: 'aliado objetivo',
+  aliado_con_menos_vida: 'aliado con menos vida',
+  siguientes_enemigos_cola: 'próximos en la cola',
+};
+
+function etiquetaDestino(target: string): string {
+  return NOMBRE_TARGET[target] ?? target;
+}
+
 // Convierte cada efecto del poder en una línea ±stat legible, sin tocar los
-// valores reales (son los mismos que usa el backend en combate).
+// valores reales (son los mismos que usa el backend en combate). Toda línea
+// termina con "· <destino>" para que quede claro sobre quién actúa el efecto.
 function formatearEfecto(e: EfectoPoder): string {
   const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
   const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
+  const destino = ` · ${etiquetaDestino(e.target)}`;
 
   switch (e.unidad) {
     case 'porcentaje_ataque_fisico':
     case 'porcentaje_ataque_magico':
-      return `+${e.valor}% daño`;
+      return `+${e.valor}% daño${destino}`;
     case 'porcentaje_vida_maxima':
     case 'porcentaje_vida_actual': {
       const signo = e.tipo === 'curacion' ? '+' : '-';
-      return `${signo}${Math.abs(e.valor)}% vida${duracion}`;
+      return `${signo}${Math.abs(e.valor)}% vida${duracion}${destino}`;
     }
     case 'porcentaje_dano_recibido':
-      return `+${e.valor}% contraataque`;
+      return `+${e.valor}% contraataque${destino}`;
     case 'porcentaje_stat':
     case 'puntos_porcentuales': {
       const signo = e.valor >= 0 ? '+' : '';
       const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `${signo}${e.valor}% ${stat}${duracion}${prob}`;
+      return `${signo}${e.valor}% ${stat}${duracion}${prob}${destino}`;
     }
     case 'turnos':
-      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}`;
+      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}${destino}`;
+    // No hay un número fijo: el backend lo calcula en tiempo de combate
+    // (combat_resolver_efecto_combate lo ignora a propósito, cae en el ELSE).
+    // Esta línea es puramente descriptiva para el jugador.
+    case 'robo_variable': {
+      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
+      return `+${stat} robad${stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
+    }
     default:
       return '';
   }
