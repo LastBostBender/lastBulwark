@@ -79,6 +79,17 @@ export const Layout = ({
         }}
       >
         <span
+          className="badge me-2"
+          style={{
+            backgroundColor: theme.badge,
+            color: '#121212',
+            flexShrink: 0
+          }}
+        >
+          {nivel || 1}
+        </span>
+
+        <span
           className="fw-bold me-2"
           style={{
             color: theme.text,
@@ -104,24 +115,6 @@ export const Layout = ({
           }}
         >
           {clase || 'NPC consciente'}
-        </span>
-
-        <span
-          style={{ color: theme.border }}
-          className="mx-2"
-        >
-          |
-        </span>
-
-        <span
-          className="badge"
-          style={{
-            backgroundColor: theme.badge,
-            color: '#121212',
-            flexShrink: 0
-          }}
-        >
-          Nvl. {nivel || 1}
         </span>
       </header>
 
