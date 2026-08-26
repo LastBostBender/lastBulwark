@@ -13,42 +13,118 @@ interface LayoutProps {
   onNavigate?: (vista: Vista) => void;
 }
 
-export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNavigate }: LayoutProps) => {
-  const theme = getTheme(zona || null); // <--- CORREGIDO
+const HEADER_MIN_HEIGHT = 72; // piso: nunca reserva menos que esto (caso de 2 líneas)
+
+export const Layout = ({
+  children,
+  nombre,
+  clase,
+  nivel,
+  zona,
+  vistaActual,
+  onNavigate
+}: LayoutProps) => {
+  const theme = getTheme(zona || null);
+  const headerRef = React.useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = React.useState(HEADER_MIN_HEIGHT);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--font-display', theme.fontDisplay);
     document.documentElement.style.setProperty('--font-body', theme.fontBody);
   }, [theme.fontDisplay, theme.fontBody]);
 
-  const colorTab = (vista: Vista) => (vistaActual === vista ? theme.accent : theme.text);
-  const ir = (vista: Vista) => () => onNavigate && onNavigate(vista);
+  // El header puede crecer a 3+ líneas si el nombre de la clase es largo.
+  // En vez de una altura fija, medimos el header real y ajustamos el
+  // padding del contenido para que nunca quede tapado.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const actualizarAltura = () => {
+      setHeaderHeight(Math.max(HEADER_MIN_HEIGHT, el.offsetHeight));
+    };
+
+    actualizarAltura();
+
+    const observer = new ResizeObserver(actualizarAltura);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nombre, clase, nivel]);
+
+  const colorTab = (vista: Vista) =>
+    vistaActual === vista ? theme.accent : theme.text;
+
+  const ir = (vista: Vista) => () =>
+    onNavigate && onNavigate(vista);
 
   return (
-    <div className="d-flex flex-column vh-100" style={{ backgroundColor: theme.bg, color: theme.text }}>
-      {/* Header fijo */}
+    <div
+      className="d-flex flex-column vh-100"
+      style={{
+        backgroundColor: theme.bg,
+        color: theme.text
+      }}
+    >
+      {/* Header fijo - altura dinámica, crece si el contenido necesita más de 2 líneas */}
       <header
-        className="fixed-top py-2 px-3 d-flex align-items-center justify-content-center"
+        ref={headerRef}
+        className="fixed-top px-3 py-2 d-flex align-items-center justify-content-center flex-wrap"
         style={{
           backgroundColor: theme.headerBg,
           borderBottom: `1px solid ${theme.border}`,
           zIndex: 10,
-          minHeight: '56px'
+          minHeight: `${HEADER_MIN_HEIGHT}px`,
+          lineHeight: 1.2,
+          textAlign: 'center'
         }}
       >
-        <span className="fw-bold me-2" style={{ color: theme.text }}>{nombre || 'Sin nombre'}</span>
-        <span style={{ color: theme.border }} className="mx-2">|</span>
-        <span style={{ color: theme.text }}>{clase || 'Marginado'}</span>
-        <span style={{ color: theme.border }} className="mx-2">|</span>
-        <span className="badge" style={{ backgroundColor: theme.badge, color: '#121212' }}>Nvl. {nivel || 1}</span>
+        <span
+          className="badge me-2"
+          style={{
+            backgroundColor: theme.badge,
+            color: '#121212',
+            flexShrink: 0
+          }}
+        >
+          {nivel || 1}
+        </span>
+
+        <span
+          className="fw-bold me-2"
+          style={{
+            color: theme.text,
+            maxWidth: '100%',
+            overflowWrap: 'anywhere'
+          }}
+        >
+          {nombre || 'Sin nombre'}
+        </span>
+
+        <span
+          style={{ color: theme.border }}
+          className="mx-2"
+        >
+          |
+        </span>
+
+        <span
+          style={{
+            color: theme.text,
+            maxWidth: '100%',
+            overflowWrap: 'anywhere'
+          }}
+        >
+          {clase || 'NPC consciente'}
+        </span>
       </header>
 
       {/* Contenido */}
       <main
-        className="flex-grow-1 overflow-auto mt-5 pt-2 pb-5 px-3"
+        className="flex-grow-1 overflow-auto px-3"
         style={{
-          marginTop: '56px',
-          marginBottom: '70px',
+          paddingTop: `${headerHeight + 8}px`,
+          paddingBottom: '80px',
+          marginBottom: '0',
           backgroundColor: theme.bg,
           color: theme.text
         }}
@@ -91,15 +167,23 @@ export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNa
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '0 20px',
-            WebkitMaskImage: 'radial-gradient(circle at center 0px, transparent 36px, black 37px)',
-            maskImage: 'radial-gradient(circle at center 0px, transparent 36px, black 37px)'
+            WebkitMaskImage:
+              'radial-gradient(circle at center 0px, transparent 36px, black 37px)',
+            maskImage:
+              'radial-gradient(circle at center 0px, transparent 36px, black 37px)'
           }}
         >
-          <div className="d-flex" style={{ gap: '1.25rem' }}>
+          <div
+            className="d-flex"
+            style={{ gap: '1.25rem' }}
+          >
             <button
               onClick={ir('mazmorra')}
               className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-              style={{ border: 'none', color: colorTab('mazmorra') }}
+              style={{
+                border: 'none',
+                color: colorTab('mazmorra')
+              }}
             >
               <i className="bi bi-shield-shaded fs-4"></i>
               <span className="small">Mazmorra</span>
@@ -108,7 +192,10 @@ export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNa
             <button
               onClick={ir('poderes')}
               className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-              style={{ border: 'none', color: colorTab('poderes') }}
+              style={{
+                border: 'none',
+                color: colorTab('poderes')
+              }}
             >
               <i className="bi bi-bezier2 fs-4"></i>
               <span className="small">Poderes</span>
@@ -120,7 +207,10 @@ export const Layout = ({ children, nombre, clase, nivel, zona, vistaActual, onNa
           <button
             onClick={ir('inventario')}
             className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-            style={{ border: 'none', color: colorTab('inventario') }}
+            style={{
+              border: 'none',
+              color: colorTab('inventario')
+            }}
           >
             <i className="bi bi-backpack fs-4"></i>
             <span className="small">Inventario</span>

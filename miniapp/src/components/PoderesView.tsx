@@ -59,6 +59,23 @@ const NOMBRE_STAT: Record<string, string> = {
   aleatorio: 'stat aleatorio',
 };
 
+// Etiqueta de a quién le llega el efecto. Cubre los valores de `target` que
+// existen hoy en la tabla powers; si aparece uno nuevo, se muestra tal cual
+// en vez de desaparecer en silencio.
+const NOMBRE_TARGET: Record<string, string> = {
+  self: 'ti',
+  enemigo: 'enemigo',
+  todos_enemigos: 'todos los enemigos',
+  todos_aliados: 'todos los aliados',
+  aliado_objetivo: 'aliado objetivo',
+  aliado_con_menos_vida: 'aliado con menos vida',
+  siguientes_enemigos_cola: 'próximos en la cola',
+};
+
+function etiquetaDestino(target: string): string {
+  return NOMBRE_TARGET[target] ?? target;
+}
+
 // Si el efecto trae escala_por, ajusta el valor base con la stat del jugador
 // que abre esta pantalla — misma fórmula que combat_resolver_efecto_combate
 // en SQL: delta_final = delta_base * (1 + stat/100), truncado.
@@ -71,31 +88,40 @@ function valorEscalado(e: EfectoPoder, perfil: PoderesViewProps['perfil']): numb
 
 // Convierte cada efecto del poder en una línea ±stat legible. El valor ya
 // viene escalado por la stat del jugador cuando el efecto lo requiere, para
-// que coincida con lo que de verdad recibe en combate.
+// que coincida con lo que de verdad recibe en combate. Toda línea termina
+// con "· <destino>" para que quede claro sobre quién actúa el efecto.
 function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): string {
   const valor = valorEscalado(e, perfil);
   const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
   const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
+  const destino = ` · ${etiquetaDestino(e.target)}`;
 
   switch (e.unidad) {
     case 'porcentaje_ataque_fisico':
     case 'porcentaje_ataque_magico':
-      return `+${valor}% daño`;
+      return `+${valor}% daño${destino}`;
     case 'porcentaje_vida_maxima':
     case 'porcentaje_vida_actual': {
       const signo = e.tipo === 'curacion' ? '+' : '-';
-      return `${signo}${Math.abs(valor)}% vida${duracion}`;
+      return `${signo}${Math.abs(valor)}% vida${duracion}${destino}`;
     }
     case 'porcentaje_dano_recibido':
-      return `+${valor}% contraataque`;
+      return `+${valor}% contraataque${destino}`;
     case 'porcentaje_stat':
     case 'puntos_porcentuales': {
       const signo = valor >= 0 ? '+' : '';
       const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `${signo}${valor}% ${stat}${duracion}${prob}`;
+      return `${signo}${valor}% ${stat}${duracion}${prob}${destino}`;
     }
     case 'turnos':
-      return `Inhabilita ${valor} turno${valor > 1 ? 's' : ''}`;
+      return `Inhabilita ${valor} turno${valor > 1 ? 's' : ''}${destino}`;
+    // No hay un número fijo: el backend lo calcula en tiempo de combate
+    // (combat_resolver_efecto_combate lo ignora a propósito, cae en el ELSE).
+    // Esta línea es puramente descriptiva para el jugador.
+    case 'robo_variable': {
+      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
+      return `+${stat} robad${stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
+    }
     default:
       return '';
   }
@@ -201,7 +227,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   const tiersYaElegidos = new Set(poderesAprendidosInfo.map((p) => p.tier));
 
   const poderesPendientes: Poder[] = catalogo.filter((p) => {
-    if (perfil.clase !== 'Marginado') return false;
+    if (perfil.clase !== 'NPC consciente') return false;
     if (aprendidos.includes(p.nombre)) return false;
     // Solo se elige 1 poder por tier: si ya aprendió alguno de este tier
     // (aunque haya sido de otro stat empatado), el resto deja de ofrecerse.
