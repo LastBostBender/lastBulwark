@@ -27,6 +27,7 @@ interface Combatiente {
   id: number;
   orden: number | null;
   tipo: 'jugador' | 'enemigo';
+  bando: number;
   telegram_id: number | null;
   nombre: string;
   nivel: number;
@@ -418,11 +419,13 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
   const categoria: Categoria = accionActiva?.tipo === 'golpe' ? 'enemigo' : accionActiva?.poder ? categoriaObjetivo(accionActiva.poder) : null;
 
+  // Se distingue por "bando" (no por "tipo"): en un duelo de arena el rival también
+  // es tipo 'jugador', así que filtrar por tipo === 'enemigo' nunca encontraba nada ahí.
   const objetivosPosibles =
     categoria === 'enemigo' || categoria === 'area_enemigos'
-      ? combatientes.filter((c) => c.tipo === 'enemigo' && c.vivo)
+      ? combatientes.filter((c) => c.bando !== miCombatiente?.bando && c.vivo)
       : categoria === 'aliado' || categoria === 'area_aliados'
-        ? combatientes.filter((c) => c.tipo === 'jugador' && c.vivo)
+        ? combatientes.filter((c) => c.bando === miCombatiente?.bando && c.vivo)
         : categoria === 'area_todos'
           ? combatientes.filter((c) => c.vivo)
           : [];
@@ -457,7 +460,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
               const esTurno = c.orden === sesion.turno_actual;
               const yaJugo = (c.orden ?? 0) < sesion.turno_actual;
               const fill = esTurno ? '#4caf50' : yaJugo ? '#c0392b' : '#f0c419';
-              const borde = c.tipo === 'jugador' ? '#4caf50' : '#c0392b';
+              const borde = c.bando === miCombatiente?.bando ? '#4caf50' : '#c0392b';
               return (
                 <span
                   key={c.id}
