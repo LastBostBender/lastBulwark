@@ -13,6 +13,10 @@ interface PoderesViewProps {
     fue: number;
     int: number;
     agi: number;
+    // Stats derivadas usadas por escala_por (ataque_fisico, ataque_magico, etc.).
+    // Índice abierto porque escala_por puede apuntar a cualquier stat del
+    // combatiente, igual que to_jsonb(p_actor)->>v_escala_por en el SQL.
+    [stat: string]: any;
   };
   onPoderAprendido?: (poder: string) => void;
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
@@ -27,6 +31,7 @@ interface EfectoPoder {
   trigger: string;
   duracion_turnos?: number;
   probabilidad?: number;
+  escala_por?: string;
 }
 
 interface Poder {
@@ -54,48 +59,69 @@ const NOMBRE_STAT: Record<string, string> = {
   aleatorio: 'stat aleatorio',
 };
 
+// Etiqueta de a quién le llega el efecto. Cubre los valores de `target` que
+// existen hoy en la tabla powers; si aparece uno nuevo, se muestra tal cual
+// en vez de desaparecer en silencio.
 const NOMBRE_TARGET: Record<string, string> = {
-  enemigo: 'objetivo',
   self: 'ti',
-  aliado_objetivo: 'aliado objetivo',
-  aliado_aleatorio: 'aliado al azar',
-  todos_aliados: 'todos los aliados',
+  enemigo: 'enemigo',
   todos_enemigos: 'todos los enemigos',
-  todos_en_combate: 'todo el campo',
-  siguientes_enemigos_cola: 'próximos 3 en cola',
+  todos_aliados: 'todos los aliados',
+  aliado_objetivo: 'aliado objetivo',
+  aliado_con_menos_vida: 'aliado con menos vida',
+  siguientes_enemigos_cola: 'próximos en la cola',
 };
 
-// Convierte cada efecto del poder en una línea ±stat legible, sin tocar los
-// valores reales (son los mismos que usa el backend en combate). Siempre
-// indica sobre quién cae el efecto, para que no quede ambiguo.
-function formatearEfecto(e: EfectoPoder): string {
+function etiquetaDestino(target: string): string {
+  return NOMBRE_TARGET[target] ?? target;
+}
+
+// Si el efecto trae escala_por, ajusta el valor base con la stat del jugador
+// que abre esta pantalla — misma fórmula que combat_resolver_efecto_combate
+// en SQL: delta_final = delta_base * (1 + stat/100), truncado.
+function valorEscalado(e: EfectoPoder, perfil: PoderesViewProps['perfil']): number {
+  if (!e.escala_por) return e.valor;
+  const statValor = Number(perfil[e.escala_por] ?? 0);
+  const factor = 1 + statValor / 100;
+  return Math.trunc(e.valor * factor);
+}
+
+// Convierte cada efecto del poder en una línea ±stat legible. El valor ya
+// viene escalado por la stat del jugador cuando el efecto lo requiere, para
+// que coincida con lo que de verdad recibe en combate. Toda línea termina
+// con "· <destino>" para que quede claro sobre quién actúa el efecto.
+function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): string {
+  const valor = valorEscalado(e, perfil);
   const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
   const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
-  const target = ` · ${NOMBRE_TARGET[e.target] ?? e.target}`;
+  const destino = ` · ${etiquetaDestino(e.target)}`;
 
   switch (e.unidad) {
     case 'porcentaje_ataque_fisico':
     case 'porcentaje_ataque_magico':
-      return `+${e.valor}% daño${target}`;
+      return `+${valor}% daño${destino}`;
     case 'porcentaje_vida_maxima':
     case 'porcentaje_vida_actual': {
       const signo = e.tipo === 'curacion' ? '+' : '-';
-      return `${signo}${Math.abs(e.valor)}% vida${duracion}${target}`;
+      return `${signo}${Math.abs(valor)}% vida${duracion}${destino}`;
     }
     case 'porcentaje_dano_recibido':
-      return `+${e.valor}% contraataque${target}`;
-    case 'robo_variable': {
-      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `+${stat} robada${duracion}${target}`;
-    }
+      return `+${valor}% contraataque${destino}`;
     case 'porcentaje_stat':
     case 'puntos_porcentuales': {
-      const signo = e.valor >= 0 ? '+' : '';
+      const signo = valor >= 0 ? '+' : '';
       const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `${signo}${e.valor}% ${stat}${duracion}${prob}${target}`;
+      return `${signo}${valor}% ${stat}${duracion}${prob}${destino}`;
     }
     case 'turnos':
-      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}${target}`;
+      return `Inhabilita ${valor} turno${valor > 1 ? 's' : ''}${destino}`;
+    // No hay un número fijo: el backend lo calcula en tiempo de combate
+    // (combat_resolver_efecto_combate lo ignora a propósito, cae en el ELSE).
+    // Esta línea es puramente descriptiva para el jugador.
+    case 'robo_variable': {
+      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
+      return `+${stat} robad${stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
+    }
     default:
       return '';
   }
@@ -109,8 +135,8 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
-const DetallePoder = ({ poder, theme }: { poder: Poder; theme: ReturnType<typeof getTheme> }) => {
-  const lineas = (poder.parametros?.efectos ?? []).map(formatearEfecto).filter(Boolean);
+const DetallePoder = ({ poder, theme, perfil }: { poder: Poder; theme: ReturnType<typeof getTheme>; perfil: PoderesViewProps['perfil'] }) => {
+  const lineas = (poder.parametros?.efectos ?? []).map((e) => formatearEfecto(e, perfil)).filter(Boolean);
   return (
     <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
       <p style={{ color: theme.text, marginBottom: lineas.length ? '0.5rem' : 0 }}>{poder.descripcion}</p>
@@ -270,7 +296,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
                     </button>
                     {expandido && (
                       <>
-                        <DetallePoder poder={poder} theme={theme} />
+                        <DetallePoder poder={poder} theme={theme} perfil={perfil} />
                         <div style={{ padding: '0 0.2rem 0.8rem 1.8rem' }}>
                           <button
                             className="btn rounded-circle"
@@ -334,7 +360,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
                     <i className={`bi bi-${poderExpandido === poder.nombre ? 'chevron-up' : 'chevron-right'}`}></i>
                   </span>
                 </button>
-                {poderExpandido === poder.nombre && <DetallePoder poder={poder} theme={theme} />}
+                {poderExpandido === poder.nombre && <DetallePoder poder={poder} theme={theme} perfil={perfil} />}
               </div>
             ))}
           </div>

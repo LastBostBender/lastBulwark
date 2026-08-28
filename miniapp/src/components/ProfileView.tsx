@@ -36,11 +36,8 @@ interface ProfileViewProps {
   onProfileChange?: (perfil: any) => void;
 }
 
-const xpBaseNivel = (nivel: number): number => {
-  if (nivel <= 1) return 0;
-  return Math.floor(20 * Math.pow(nivel - 1, 1.8));
-};
-
+// Costo de XP para subir del nivel dado al siguiente, calculado desde 0
+// (no acumulado histórico — ver sumar_xp/mb_otorgar_xp en el backend).
 const xpNecesaria = (nivel: number): number => {
   return Math.floor(20 * Math.pow(nivel, 1.8));
 };
@@ -252,10 +249,11 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const psActual = Math.min(profile.ps_actual, psMax);
   const pmActual = Math.min(profile.pm_actual, pmMax);
 
-  const xpBase = xpBaseNivel(profile.nivel);
-  const xpSiguiente = xpNecesaria(profile.nivel);
-  const xpEnEsteNivel = profile.xp_total - xpBase;
-  const xpParaSubir = xpSiguiente - xpBase;
+  // xp_total ya viene del backend como progreso DENTRO del nivel actual
+  // (arranca en 0 al subir de nivel, con el sobrante acarreado) — no acumulado
+  // histórico, así que aquí no se resta ninguna base.
+  const xpEnEsteNivel = profile.xp_total;
+  const xpParaSubir = xpNecesaria(profile.nivel);
 
   // regen_ps / regen_pm: bonus de Voracidad (Brote de Acero) aplicado al ritmo mostrado.
   const regenPS = ((profile.fue * 0.4) + (profile.agi * 0.1) + 2) * (1 + (bonusZona.regen_ps ?? 0) / 100);
