@@ -54,31 +54,48 @@ const NOMBRE_STAT: Record<string, string> = {
   aleatorio: 'stat aleatorio',
 };
 
+const NOMBRE_TARGET: Record<string, string> = {
+  enemigo: 'objetivo',
+  self: 'ti',
+  aliado_objetivo: 'aliado objetivo',
+  aliado_aleatorio: 'aliado al azar',
+  todos_aliados: 'todos los aliados',
+  todos_enemigos: 'todos los enemigos',
+  todos_en_combate: 'todo el campo',
+  siguientes_enemigos_cola: 'próximos 3 en cola',
+};
+
 // Convierte cada efecto del poder en una línea ±stat legible, sin tocar los
-// valores reales (son los mismos que usa el backend en combate).
+// valores reales (son los mismos que usa el backend en combate). Siempre
+// indica sobre quién cae el efecto, para que no quede ambiguo.
 function formatearEfecto(e: EfectoPoder): string {
   const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
   const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
+  const target = ` · ${NOMBRE_TARGET[e.target] ?? e.target}`;
 
   switch (e.unidad) {
     case 'porcentaje_ataque_fisico':
     case 'porcentaje_ataque_magico':
-      return `+${e.valor}% daño`;
+      return `+${e.valor}% daño${target}`;
     case 'porcentaje_vida_maxima':
     case 'porcentaje_vida_actual': {
       const signo = e.tipo === 'curacion' ? '+' : '-';
-      return `${signo}${Math.abs(e.valor)}% vida${duracion}`;
+      return `${signo}${Math.abs(e.valor)}% vida${duracion}${target}`;
     }
     case 'porcentaje_dano_recibido':
-      return `+${e.valor}% contraataque`;
+      return `+${e.valor}% contraataque${target}`;
+    case 'robo_variable': {
+      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
+      return `+${stat} robada${duracion}${target}`;
+    }
     case 'porcentaje_stat':
     case 'puntos_porcentuales': {
       const signo = e.valor >= 0 ? '+' : '';
       const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `${signo}${e.valor}% ${stat}${duracion}${prob}`;
+      return `${signo}${e.valor}% ${stat}${duracion}${prob}${target}`;
     }
     case 'turnos':
-      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}`;
+      return `Inhabilita ${e.valor} turno${e.valor > 1 ? 's' : ''}${target}`;
     default:
       return '';
   }
