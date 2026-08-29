@@ -1260,6 +1260,10 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           </div>
         ) : !puedoActuar ? (
           <div className="d-flex align-items-center justify-content-center h-100 gap-2 py-4">
+            <i
+              className="bi bi-arrow-repeat spin-icon"
+              style={{ color: theme.accent }}
+            />
             <span className="text-secondary">
               {sesion.votacion_huida
                 ? 'Votación de huida en curso...'
