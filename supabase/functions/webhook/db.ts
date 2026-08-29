@@ -1,4 +1,4 @@
-﻿import { SUPABASE_URL, SB_HEADERS, SB_HEADERS_JSON } from "./config.ts";
+import { SUPABASE_URL, SB_HEADERS, SB_HEADERS_JSON } from "./config.ts";
 
 export async function isRegistered(telegramId: number): Promise<boolean> {
   const url = `${SUPABASE_URL}/rest/v1/profiles?telegram_id=eq.${telegramId}&select=telegram_id`;
@@ -112,6 +112,28 @@ export async function vincularTemaMiniJefes(chatId: number, threadId: number) {
   return true;
 }
 
+export async function vincularTemaArena(chatId: number, threadId: number) {
+  const url = `${SUPABASE_URL}/rest/v1/authorized_groups?chat_id=eq.${chatId}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { ...SB_HEADERS_JSON, Prefer: "return=minimal" },
+    body: JSON.stringify({ topic_arena_id: threadId }),
+  });
+  if (!res.ok) {
+    console.error("Error vinculando tema de arenas:", await res.text());
+    return false;
+  }
+  return true;
+}
+
+export async function obtenerTemaArena(chatId: number): Promise<number | null> {
+  const url = `${SUPABASE_URL}/rest/v1/authorized_groups?chat_id=eq.${chatId}&select=topic_arena_id`;
+  const res = await fetch(url, { headers: SB_HEADERS });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return Array.isArray(data) && data.length > 0 ? data[0]?.topic_arena_id ?? null : null;
+}
+
 export async function actualizarMensajeEncuentro(encounterId: number, mensajeId: number) {
   const url = `${SUPABASE_URL}/rest/v1/mini_boss_encounters?id=eq.${encounterId}`;
   const res = await fetch(url, {
@@ -121,5 +143,86 @@ export async function actualizarMensajeEncuentro(encounterId: number, mensajeId:
   });
   if (!res.ok) {
     console.error("Error guardando mensaje_id:", await res.text());
+  }
+}
+
+export async function arenaCrearInvitacion(telegramId: number): Promise<any> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_crear_invitacion`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: SB_HEADERS_JSON,
+    body: JSON.stringify({ p_telegram_id: telegramId }),
+  });
+  if (!res.ok) {
+    console.error("Error creando invitación de arena:", await res.text());
+    return { ok: false, motivo: "error_interno" };
+  }
+  return res.json();
+}
+
+// IMPORTANTE: esta validación ya NO recibe telegramId. La tarjeta pública del duelo se
+// muestra sin gate de identidad — cualquiera puede pegar el código en el grupo
+// (incluido el propio invitador, que es el caso normal). Toda la validación de
+// identidad (propio código, registro, ya en combate) se hace en arenaAceptar,
+// que corre cuando alguien hace clic en "Acepto".
+export async function arenaValidarCodigo(codigo: string): Promise<any> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_validar_codigo`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: SB_HEADERS_JSON,
+    body: JSON.stringify({ p_codigo: codigo }),
+  });
+  if (!res.ok) {
+    console.error("Error validando código de arena:", await res.text());
+    return { ok: false, motivo: "error_interno" };
+  }
+  return res.json();
+}
+
+export async function arenaAceptar(invitacionId: number, telegramId: number): Promise<any> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_aceptar`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: SB_HEADERS_JSON,
+    body: JSON.stringify({ p_invitacion_id: invitacionId, p_telegram_id: telegramId }),
+  });
+  if (!res.ok) {
+    console.error("Error aceptando duelo de arena:", await res.text());
+    return { ok: false, motivo: "error_interno" };
+  }
+  return res.json();
+}
+
+export async function arenaResolverVencidas(): Promise<any[]> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_resolver_vencidas`;
+  const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
+  if (!res.ok) {
+    console.error("Error resolviendo invitaciones de arena vencidas:", await res.text());
+    return [];
+  }
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((row: any) => row?.arena_resolver_vencidas ?? row);
+}
+
+export async function arenaResolverFinalizados(): Promise<any[]> {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_resolver_finalizados`;
+  const res = await fetch(url, { method: "POST", headers: SB_HEADERS_JSON, body: JSON.stringify({}) });
+  if (!res.ok) {
+    console.error("Error resolviendo duelos de arena finalizados:", await res.text());
+    return [];
+  }
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((row: any) => row?.arena_resolver_finalizados ?? row);
+}
+
+export async function arenaGuardarMensaje(invitacionId: number, chatId: number, mensajeId: number) {
+  const url = `${SUPABASE_URL}/rest/v1/arena_invitaciones?id=eq.${invitacionId}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { ...SB_HEADERS_JSON, Prefer: "return=minimal" },
+    body: JSON.stringify({ chat_id: chatId, mensaje_id: mensajeId }),
+  });
+  if (!res.ok) {
+    console.error("Error guardando chat_id/mensaje_id de invitación de arena:", await res.text());
   }
 }

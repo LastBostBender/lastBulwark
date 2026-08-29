@@ -118,11 +118,12 @@ export async function handleCronTick() {
   for (const resultado of resueltos) {
     if (!resultado?.chat_id) continue;
 
-    if (resultado.estado === "cancelado" && resultado.mensaje_id) {
-      await editMessageText(resultado.chat_id, resultado.mensaje_id, mensajeResultado(resultado));
+    const texto = mensajeResultado(resultado);
+    if (resultado.mensaje_id) {
+      await editMessageText(resultado.chat_id, resultado.mensaje_id, texto);
+    } else {
+      await sendMessage(resultado.chat_id, texto, undefined, resultado.topic_mini_boss_id);
     }
-
-    await sendMessage(resultado.chat_id, mensajeResultado(resultado), undefined, resultado.topic_mini_boss_id);
   }
 
   const combatesFinalizados = await resolverCombatesFinalizados();
@@ -176,8 +177,6 @@ export async function handleCallbackQuery(callbackQuery: any) {
     );
   } else {
     if (mensajeOriginalId && callbackQuery.message?.text) {
-      // Reconstruye el mensaje original con la lista de espera actualizada, manteniendo
-      // el mismo intro/jefe/nivel (van antes del bloque de lista en el texto original).
       const textoOriginal: string = callbackQuery.message.text;
       const corte = textoOriginal.indexOf("En lista de espera");
       const encabezado = corte >= 0 ? textoOriginal.slice(0, corte).trimEnd() : textoOriginal;

@@ -1,9 +1,10 @@
 import { MINI_APP_URL } from "./config.ts";
 import { sendMessage, getChatMember } from "./telegram.ts";
-import { isRegistered, isGroupAuthorized, sumarXP, registrarActividadGrupo, vincularTemaMiniJefes } from "./db.ts";
+import { isRegistered, isGroupAuthorized, sumarXP, registrarActividadGrupo, vincularTemaMiniJefes, vincularTemaArena } from "./db.ts";
 import { filtrarMensaje } from "./podometro.ts";
 
 const NOMBRES_TEMA_MINIBOSS = ["mini jefes", "mini boss"];
+const NOMBRES_TEMA_ARENA = ["arenas", "arena"];
 
 async function esAdministrador(chatId: number, userId: number): Promise<boolean> {
   if (!userId) return false;
@@ -35,12 +36,39 @@ export async function handleVincularTemaMiniJefes(msg: any) {
   await sendMessage(chatId, "Listo — los avisos de mini jefes van a llegar a este tema de ahora en más.", undefined, threadId);
 }
 
+export async function handleVincularTemaArenas(msg: any) {
+  const chatId = msg.chat.id;
+  const threadId = msg.message_thread_id;
+  const userId = msg.from?.id;
+
+  if (!threadId) {
+    await sendMessage(chatId, "Mandá este comando dentro del tema que querés usar para los avisos de arenas, no en General.");
+    return;
+  }
+
+  if (!(await esAdministrador(chatId, userId))) {
+    await sendMessage(chatId, "Solo un admin del grupo puede vincular el tema de arenas.", undefined, threadId);
+    return;
+  }
+
+  const guardado = await vincularTemaArena(chatId, threadId);
+  if (!guardado) {
+    await sendMessage(chatId, "Algo falló guardando el tema. Probá de nuevo en un rato.", undefined, threadId);
+    return;
+  }
+  await sendMessage(chatId, "Listo — los avisos de arenas van a llegar a este tema de ahora en más.", undefined, threadId);
+}
+
 export async function handleForumTopicEvent(msg: any) {
   const nombre: string | undefined = msg.forum_topic_created?.name ?? msg.forum_topic_edited?.name;
   const threadId = msg.message_thread_id;
   if (!nombre || !threadId) return;
-  if (!NOMBRES_TEMA_MINIBOSS.includes(nombre.trim().toLowerCase())) return;
-  await vincularTemaMiniJefes(msg.chat.id, threadId);
+  const nombreNormalizado = nombre.trim().toLowerCase();
+  if (NOMBRES_TEMA_MINIBOSS.includes(nombreNormalizado)) {
+    await vincularTemaMiniJefes(msg.chat.id, threadId);
+  } else if (NOMBRES_TEMA_ARENA.includes(nombreNormalizado)) {
+    await vincularTemaArena(msg.chat.id, threadId);
+  }
 }
 
 const BIENVENIDAS_REGISTRADO = [

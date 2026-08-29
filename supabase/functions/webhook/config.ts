@@ -1,4 +1,4 @@
-﻿export const BOT_TOKEN = Deno.env.get("BOT_TOKEN");
+export const BOT_TOKEN = Deno.env.get("BOT_TOKEN");
 if (!BOT_TOKEN) console.error("Falta BOT_TOKEN");
 
 export const MINI_APP_URL =

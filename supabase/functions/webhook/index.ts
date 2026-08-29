@@ -1,5 +1,6 @@
-﻿import { handleStart, handleGroupMessage, handleVincularTemaMiniJefes, handleForumTopicEvent } from "./handlers.ts";
+import { handleStart, handleGroupMessage, handleVincularTemaMiniJefes, handleVincularTemaArenas, handleForumTopicEvent } from "./handlers.ts";
 import { handleCronTick, handleCallbackQuery } from "./miniboss.ts";
+import { handleDueloForward, handleDueloComando, handleArenaCallback, tickArena } from "./arena.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "GET") {
@@ -16,11 +17,17 @@ Deno.serve(async (req) => {
 
     if (update.tipo === "mb_cron_tick") {
       await handleCronTick();
+      await tickArena();
       return new Response("OK", { status: 200 });
     }
 
     if (update.callback_query) {
-      await handleCallbackQuery(update.callback_query);
+      const data = update.callback_query.data as string | undefined;
+      if (data?.startsWith("arena_")) {
+        await handleArenaCallback(update.callback_query);
+      } else {
+        await handleCallbackQuery(update.callback_query);
+      }
       return new Response("OK", { status: 200 });
     }
 
@@ -38,8 +45,14 @@ Deno.serve(async (req) => {
 
     if (text === "/start") {
       await handleStart(chatId);
+    } else if (text === "/duelo") {
+      await handleDueloComando(msg);
+    } else if (/\/duelo_[a-f0-9]{6}\b/i.test(text) && msg.chat.type === "private") {
+      await handleDueloForward(msg);
     } else if (text.startsWith("/tema_minijefes") && msg.chat.type === "supergroup") {
       await handleVincularTemaMiniJefes(msg);
+    } else if (text.startsWith("/tema_arenas") && msg.chat.type === "supergroup") {
+      await handleVincularTemaArenas(msg);
     } else if (
       !text.startsWith("/") &&
       (msg.chat.type === "group" || msg.chat.type === "supergroup")
