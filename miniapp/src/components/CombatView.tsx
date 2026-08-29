@@ -257,6 +257,29 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   // --- Cargar combate ---
   const [intentoCombate, setIntentoCombate] = useState(0);
 
+  // Si el WebSocket se cae (comun al minimizar el WebView de Telegram) supabase-js
+  // reconecta el socket solo, pero los cambios ocurridos mientras estuvo desconectado
+  // NO se reenvian (postgres_changes no tiene replay) — la UI queda congelada aunque
+  // el canal ya este "conectado" de nuevo. Al volver a foco, forzamos un refetch real.
+  useEffect(() => {
+    if (!sesionId) return;
+
+    const revisar = () => {
+      if (document.visibilityState === 'visible') {
+        setIntentoCombate((c) => c + 1);
+      }
+    };
+
+    document.addEventListener('visibilitychange', revisar);
+    window.addEventListener('focus', revisar);
+
+    return () => {
+      document.removeEventListener('visibilitychange', revisar);
+      window.removeEventListener('focus', revisar);
+    };
+  }, [sesionId]);
+
+
   useEffect(() => {
     if (!sesionId) return;
 
