@@ -177,6 +177,10 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   const procesandoGruposRef = useRef(false);
   const gruposVistosRef = useRef<Set<number>>(new Set());
   const cargaInicialLogRef = useRef(true);
+  // Si hay narración pendiente de mostrarse (efectos, daño, etc. de la ronda
+  // anterior todavía drenando en cámara lenta), la botonera se bloquea aunque
+  // el backend ya haya avanzado el turno.
+  const [logAlDia, setLogAlDia] = useState(true);
 
   // Cargar cola
   const [errorCola, setErrorCola] = useState<string | null>(null);
@@ -526,6 +530,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
     if (!siguiente) {
       procesandoGruposRef.current = false;
+      setLogAlDia(true);
       return;
     }
 
@@ -608,6 +613,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     );
 
     colaGruposRef.current.push(...nuevos);
+    setLogAlDia(false);
 
     if (!procesandoGruposRef.current) {
       procesarColaGrupos();
@@ -635,6 +641,11 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     !!miCombatiente &&
     miCombatiente.orden === sesion.turno_actual &&
     sesion.estado === 'en_curso';
+
+  // No alcanza con que el backend diga que es tu turno: la botonera espera a que
+  // termine de narrarse la ronda anterior (efectos, daño, etc. en la cola con demora),
+  // para que no se superpongan acciones nuevas con texto de rondas pasadas.
+  const puedoActuar = esMiTurno && logAlDia;
 
   const poderesDisponibles = poderes.filter(
     (p) =>
@@ -1190,7 +1201,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
             Volviendo al perfil...
           </div>
         ) : sesion.votacion_huida &&
-          esMiTurno ? (
+          puedoActuar ? (
           <div className="d-flex flex-column align-items-center justify-content-center h-100 gap-3 py-2 text-center">
             <span>
               ¿Quieres huir del combate,
@@ -1247,12 +1258,14 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
               </button>
             </div>
           </div>
-        ) : !esMiTurno ? (
+        ) : !puedoActuar ? (
           <div className="d-flex align-items-center justify-content-center h-100 gap-2 py-4">
             <span className="text-secondary">
               {sesion.votacion_huida
                 ? 'Votación de huida en curso...'
-                : `Turno de ${
+                : esMiTurno
+                  ? 'Resolviendo la ronda...'
+                  : `Turno de ${
                     vivos.find(
                       (c) =>
                         c.orden ===
