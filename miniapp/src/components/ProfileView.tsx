@@ -29,6 +29,7 @@ interface ProfileViewProps {
     velocidad: number;
     suerte: number;
     critico: number;
+    aura: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
   // Notifica al padre (Profile.tsx) cada vez que el perfil cambia localmente,
@@ -465,8 +466,9 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
         )}
 
         {/* ORO */}
-        <div className="mt-3 text-center" style={{ fontSize: '0.8rem', color: theme.accent }}>
-          <i className="bi bi-coin me-1"></i> 0
+        <div className="mt-3 text-center d-flex align-items-center justify-content-center" style={{ fontSize: '0.8rem', color: theme.accent, gap: '1rem' }}>
+          <span><i className="bi bi-coin me-1"></i> 0</span>
+          <span><i className="bi bi-ticket-detailed me-1"></i> {profile.aura}</span>
         </div>
       </div>
     </Layout>
