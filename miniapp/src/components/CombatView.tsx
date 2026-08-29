@@ -278,6 +278,11 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
   // --- Cargar combate ---
   const [intentoCombate, setIntentoCombate] = useState(0);
+  // Distingue "primera carga de esta sesión" (ahí sí corresponde el spinner de
+  // pantalla completa, no hay nada que mostrar todavía) de "recarga por
+  // reconexión" (los datos ya están en pantalla, no hay que taparlos con un
+  // spinner — eso es lo que se sentía como recarga/flasheo en cada acción).
+  const sesionCargadaIdRef = useRef<number | null>(null);
 
   // Si el WebSocket se cae (comun al minimizar el WebView de Telegram) supabase-js
   // reconecta el socket solo, pero los cambios ocurridos mientras estuvo desconectado
@@ -308,9 +313,12 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
     let activo = true;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const esPrimeraCargaDeEstaSesion = sesionCargadaIdRef.current !== sesionId;
 
     const cargar = async () => {
-      setCargando(true);
+      if (esPrimeraCargaDeEstaSesion) {
+        setCargando(true);
+      }
       setErrorCarga(null);
 
       try {
@@ -378,6 +386,8 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
           setPoderes(activos as Poder[]);
         }
+
+        sesionCargadaIdRef.current = sesionId;
       } catch (err: any) {
         if (!activo) return;
 
