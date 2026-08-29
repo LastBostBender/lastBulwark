@@ -432,26 +432,15 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           filter: `id=eq.${sesionId}`,
         },
         (payload) => {
+          // El estado de combatientes ya se mantiene al día con el handler
+          // incremental de más abajo (evento '*' sobre combat_combatientes) —
+          // este handler solo necesita actualizar la sesión, no volver a pedir
+          // toda la lista de combatientes en cada turno.
           setSesion((prev) =>
             prev
               ? { ...prev, ...payload.new }
               : (payload.new as Sesion),
           );
-
-          supabase
-            .from('combat_combatientes')
-            .select('*')
-            .eq('sesion_id', sesionId)
-            .then(({ data }) => {
-              if (data) {
-                setCombatientes(
-                  data.sort(
-                    (a, b) =>
-                      (a.orden ?? 0) - (b.orden ?? 0),
-                  ) as Combatiente[],
-                );
-              }
-            });
         },
       )
 
