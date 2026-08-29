@@ -47,11 +47,29 @@ interface LogEntry {
   creado_en: string;
   padre_id: number | null;
   combatiente_id: number | null;
+  es_critico: boolean;
 }
 
 interface Grupo {
   raiz: LogEntry;
   ramas: LogEntry[];
+}
+
+function renderDescripcionLog(descripcion: string, esCritico: boolean) {
+  if (!esCritico) return descripcion;
+  const match = descripcion.match(/\d+/);
+  if (!match || match.index === undefined) return descripcion;
+  const antes = descripcion.slice(0, match.index);
+  const numero = match[0];
+  const despues = descripcion.slice(match.index + numero.length);
+  return (
+    <>
+      {antes}
+      <i className="bi bi-arrow-through-heart" style={{ color: '#e63950' }}></i>{' '}
+      <strong>{numero}</strong>
+      {despues}
+    </>
+  );
 }
 
 const DEMORA_JUGADOR_MIN = 750;
@@ -1091,6 +1109,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         </div>
 
         {/* Centro: log */}
+        {/* Centro: log */}
         <div
           ref={logRef}
           className="flex-grow-1 overflow-auto px-2 py-2"
@@ -1115,7 +1134,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
                   <span className="text-secondary">
                     R{raiz.turno}
                   </span>{' '}
-                  — {raiz.descripcion}
+                  — {renderDescripcionLog(raiz.descripcion, raiz.es_critico)}
                 </p>
 
                 {ramas.map((rama) => (
@@ -1129,7 +1148,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
                     <span className="text-secondary">
                       |-
                     </span>{' '}
-                    {rama.descripcion}
+                    {renderDescripcionLog(rama.descripcion, rama.es_critico)}
                   </p>
                 ))}
               </div>
