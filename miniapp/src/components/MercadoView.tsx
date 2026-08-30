@@ -83,10 +83,41 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   no_disponible_en_tienda: 'Ese objeto no está a la venta.',
   perfil_inexistente: 'No se pudo encontrar tu perfil.',
   nivel_insuficiente: 'Tu nivel no alcanza para esto.',
-  oro_insuficiente: 'No te alcanza el oro.',
+  oro_insuficiente: 'No te alcanza el crédito.',
   aura_insuficiente: 'No te alcanza el aura.',
   bolsa_llena: 'No hay espacio en tu bolsa para esto.',
 };
+
+const DetalleItem = ({ item, theme }: { item: ItemTienda; theme: ReturnType<typeof getTheme> }) => (
+  <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
+    <p style={{ color: theme.text, marginBottom: '0.5rem' }}>{item.descripcion}</p>
+
+    {item.tipo !== 'chatarra' && (
+      <div style={{ borderTop: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, padding: '0.4rem 0', fontSize: '0.85rem' }}>
+        {item.efecto?.stats && Object.keys(item.efecto.stats).length > 0 && (
+          <div className="mb-1">
+            {Object.entries(item.efecto.stats).map(([k, v]) => (
+              <div key={k} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
+                {nombreStat(k)}: {v > 0 ? `+${v}` : v}
+              </div>
+            ))}
+          </div>
+        )}
+        {item.efecto?.pasiva && <div style={{ color: theme.accent }}>Pasiva: {item.efecto.pasiva}</div>}
+        {item.powers && item.powers[0] && (
+          <div style={{ color: theme.accent }}>
+            <i className={`bi bi-${item.powers[0].icono || 'stars'} me-1`}></i>
+            Función: {item.powers[0].nombre}
+            {item.powers[0].descripcion && ` — ${item.powers[0].descripcion}`}
+          </div>
+        )}
+        {!item.efecto?.stats && !item.efecto?.pasiva && !(item.powers && item.powers[0]) && (
+          <div style={{ opacity: 0.7 }}>Sin efecto asociado.</div>
+        )}
+      </div>
+    )}
+  </div>
+);
 
 export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
   const theme = getTheme(perfil.zona);
@@ -96,7 +127,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
   const [comprando, setComprando] = useState<number | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [avisoCrafteo, setAvisoCrafteo] = useState<Categoria | null>(null);
-  const [detalle, setDetalle] = useState<ItemTienda | null>(null);
+  const [itemExpandido, setItemExpandido] = useState<number | null>(null);
 
   const abrirCategoria = useCallback(async (cat: Categoria) => {
     if (!cat.navegable) {
@@ -135,6 +166,11 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
     setCategoria(null);
     setItems([]);
     setMensaje(null);
+    setItemExpandido(null);
+  };
+
+  const toggleExpandirItem = (itemId: number) => {
+    setItemExpandido((prev) => (prev === itemId ? null : itemId));
   };
 
   const comprar = async (item: ItemTienda) => {
@@ -160,6 +196,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
     // perfil.oro / perfil.aura se actualizan solos: Profile.tsx ya tiene una
     // suscripción Realtime a UPDATE de profiles que patchea el estado.
     setMensaje(data.motivo === 'parcial' ? 'Se compró, pero la bolsa está casi llena.' : `¡${item.nombre} comprado!`);
+    setItemExpandido(null);
   };
 
   useEffect(() => {
@@ -278,125 +315,84 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
               <p className="text-center mt-4" style={{ opacity: 0.7 }}>Todavía no hay nada disponible en esta sección.</p>
             )}
 
-            <div className="d-flex flex-column" style={{ gap: '0.6rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               {items.map((item) => {
                 const precio = item.origen === 'tienda_oro' ? item.valor_base : item.precio_compra_aura;
                 const saldo = item.origen === 'tienda_oro' ? perfil.oro ?? 0 : perfil.aura ?? 0;
                 const sinNivel = perfil.nivel < item.nivel_minimo;
                 const sinSaldo = precio != null && saldo < precio;
                 const deshabilitado = sinNivel || sinSaldo || comprando === item.id;
+                const expandido = itemExpandido === item.id;
 
                 return (
-                  <div
-                    key={item.id}
-                    className="d-flex align-items-center"
-                    style={{
-                      gap: '0.7rem',
-                      backgroundColor: theme.cardBg,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: '8px',
-                      padding: '0.6rem',
-                    }}
-                  >
-                    <i className={`bi bi-${item.icono || 'question-circle'}`} style={{ fontSize: '1.4rem', color: theme.accent }}></i>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.9rem', fontFamily: 'var(--font-display)' }}>{item.nombre}</div>
-                      <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>
-                        {precio ?? '—'} {item.origen === 'tienda_oro' ? 'oro' : 'aura'}
-                        {item.nivel_minimo > 1 && ` · Nivel mín. ${item.nivel_minimo}`}
-                      </div>
-                    </div>
+                  <div key={item.id} style={{ borderBottom: `1px solid ${theme.border}40` }}>
                     <button
-                      className="btn btn-sm d-flex align-items-center justify-content-center"
-                      onClick={() => setDetalle(item)}
-                      style={{ border: `1px solid ${theme.text}80`, color: theme.text, backgroundColor: 'transparent', width: '2rem', height: '2rem', padding: 0 }}
-                      title="Inspeccionar"
-                    >
-                      <i className="bi bi-eye"></i>
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      disabled={deshabilitado}
-                      onClick={() => comprar(item)}
+                      onClick={() => toggleExpandirItem(item.id)}
                       style={{
-                        border: `1px solid ${deshabilitado ? theme.text + '40' : theme.accent}`,
-                        color: deshabilitado ? theme.text + '40' : theme.accent,
-                        backgroundColor: 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.6rem',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '0.4rem 0.2rem',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '0.95rem',
+                        color: theme.text,
+                        cursor: 'pointer',
                       }}
-                      title={sinNivel ? `Requiere nivel ${item.nivel_minimo}` : sinSaldo ? 'Saldo insuficiente' : 'Comprar'}
                     >
-                      Comprar
+                      <i className={`bi bi-${item.icono || 'question-circle'}`} style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div>{item.nombre}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>
+                          {precio ?? '—'} {item.origen === 'tienda_oro' ? 'crédito' : 'aura'}
+                          {item.nivel_minimo > 1 && ` · Nivel mín. ${item.nivel_minimo}`}
+                        </div>
+                      </div>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.text }}>
+                        <i className={`bi bi-${expandido ? 'chevron-up' : 'chevron-right'}`}></i>
+                      </span>
                     </button>
+                    {expandido && (
+                      <>
+                        <DetalleItem item={item} theme={theme} />
+                        <div style={{ padding: '0 0.2rem 0.8rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <button
+                            className="btn rounded-circle"
+                            disabled={deshabilitado}
+                            onClick={(e) => { e.stopPropagation(); comprar(item); }}
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: deshabilitado ? theme.text + '40' : theme.accent,
+                              border: `1px solid ${deshabilitado ? theme.text + '40' : theme.accent}`,
+                              backgroundColor: 'transparent',
+                              opacity: comprando === item.id ? 0.6 : 1,
+                              cursor: deshabilitado ? 'not-allowed' : 'pointer',
+                            }}
+                            title={sinNivel ? `Requiere nivel ${item.nivel_minimo}` : sinSaldo ? 'Saldo insuficiente' : 'Comprar'}
+                          >
+                            {/* Mismo ícono que referencia la moneda en el header: en este
+                                contexto (botón de acción sobre un ítem) se lee como "comprar". */}
+                            <i className={`bi bi-${item.origen === 'tienda_oro' ? 'coin' : 'ticket-detailed'}`}></i>
+                          </button>
+                          {(sinNivel || sinSaldo) && (
+                            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                              {sinNivel ? `Requiere nivel ${item.nivel_minimo}` : 'Saldo insuficiente'}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* ---- Modal de inspección ---- */}
-        {detalle && (
-          <div
-            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 50 }}
-            onClick={() => setDetalle(null)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: '320px',
-                backgroundColor: theme.cardBg,
-                border: `2px solid ${theme.accent}`,
-                borderRadius: '8px',
-                padding: '1rem',
-                color: theme.text,
-              }}
-            >
-              <div className="d-flex align-items-center mb-2" style={{ gap: '0.5rem' }}>
-                <i className={`bi bi-${detalle.icono || 'question-circle'}`} style={{ fontSize: '1.4rem', color: theme.accent }}></i>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>{detalle.nombre}</span>
-              </div>
-
-              <div style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
-                {detalle.nivel_minimo > 1 && `Nivel mín. ${detalle.nivel_minimo}`}
-              </div>
-
-              <p style={{ fontSize: '0.95rem', marginBottom: '0.6rem' }}>{detalle.descripcion}</p>
-
-              {detalle.tipo !== 'chatarra' && (
-                <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '0.5rem', marginBottom: '0.6rem', fontSize: '0.85rem' }}>
-                  {detalle.efecto?.stats && Object.keys(detalle.efecto.stats).length > 0 && (
-                    <div className="mb-1">
-                      {Object.entries(detalle.efecto.stats).map(([k, v]) => (
-                        <div key={k}>{nombreStat(k)}: {v > 0 ? `+${v}` : v}</div>
-                      ))}
-                    </div>
-                  )}
-                  {detalle.efecto?.pasiva && <div>Pasiva: {detalle.efecto.pasiva}</div>}
-                  {detalle.powers && detalle.powers[0] && (
-                    <div>
-                      <i className={`bi bi-${detalle.powers[0].icono || 'stars'} me-1`}></i>
-                      Función: {detalle.powers[0].nombre}
-                      {detalle.powers[0].descripcion && ` — ${detalle.powers[0].descripcion}`}
-                    </div>
-                  )}
-                  {!detalle.efecto?.stats && !detalle.efecto?.pasiva && !(detalle.powers && detalle.powers[0]) && (
-                    <div style={{ opacity: 0.7 }}>Sin efecto asociado.</div>
-                  )}
-                </div>
-              )}
-
-              <div className="d-flex justify-content-end">
-                <button
-                  className="btn btn-sm"
-                  disabled={comprando === detalle.id}
-                  onClick={() => { comprar(detalle); setDetalle(null); }}
-                  style={{ border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
-                >
-                  Comprar
-                </button>
-              </div>
             </div>
           </div>
         )}

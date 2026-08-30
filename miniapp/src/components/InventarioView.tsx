@@ -504,7 +504,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
                   disabled={procesando}
                   onClick={() => ejecutarAccion('tienda_vender', { p_cantidad: seleccionado.cantidad })}
-                  title={`Vender por ${seleccionado.precio_venta_oro * seleccionado.cantidad} oro`}
+                  title={`Vender por ${seleccionado.precio_venta_oro * seleccionado.cantidad} crédito`}
                 >
                   <i className="bi bi-cash-coin"></i>
                 </button>
