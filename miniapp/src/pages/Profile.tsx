@@ -5,10 +5,11 @@ import { ProfileView } from '../components/ProfileView';
 import { PoderesView } from '../components/PoderesView';
 import { CombatView } from '../components/CombatView';
 import { InventarioView } from '../components/InventarioView';
+import { MercadoView } from '../components/MercadoView';
 import { Layout } from '../components/Layout';
 import TelegramWebApp from '@twa-dev/sdk';
 
-type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
+type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado';
 
 const TIMEOUT_MS = 10000;
 
@@ -145,6 +146,10 @@ export const Profile = () => {
 
   if (vista === 'inventario') {
     return <InventarioView perfil={perfil} onNavigate={setVista} />;
+  }
+
+  if (vista === 'mercado') {
+    return <MercadoView perfil={perfil} onNavigate={setVista} />;
   }
 
   // Mazmorra todavía no existe como vista propia.

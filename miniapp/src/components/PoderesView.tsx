@@ -19,7 +19,7 @@ interface PoderesViewProps {
     [stat: string]: any;
   };
   onPoderAprendido?: (poder: string) => void;
-  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
+  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
 }
 
 interface EfectoPoder {

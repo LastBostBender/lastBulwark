@@ -11,7 +11,7 @@ interface InventarioViewProps {
     zona: string;
     clase: string;
   };
-  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
+  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
 }
 
 type ItemTipo = 'equipamiento' | 'usable' | 'chatarra';
@@ -35,6 +35,7 @@ interface ItemRow {
   power_descripcion: string | null;
   power_icono: string | null;
   nivel_minimo: number;
+  precio_venta_oro: number | null;
 }
 
 const CAPACIDAD: Record<ItemTipo, number> = {
@@ -125,6 +126,7 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   debe_desequiparse_primero: 'Desequípalo antes de eliminarlo.',
   cantidad_invalida: 'Cantidad inválida.',
   nivel_insuficiente: 'Tu nivel no alcanza para equipar esto.',
+  no_vendible: 'Ese objeto no se puede vender.',
 };
 
 export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
@@ -171,7 +173,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
   };
 
   const ejecutarAccion = async (
-    fn: 'inv_equipar' | 'inv_desequipar' | 'inv_usar' | 'inv_eliminar',
+    fn: 'inv_equipar' | 'inv_desequipar' | 'inv_usar' | 'inv_eliminar' | 'tienda_vender',
     extra?: Record<string, unknown>
   ) => {
     if (!seleccionado || procesando) return;
@@ -493,6 +495,18 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   title="Usar"
                 >
                   <i className="bi bi-person-plus"></i>
+                </button>
+              )}
+
+              {!seleccionado.equipado && seleccionado.precio_venta_oro != null && (
+                <button
+                  className="btn rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                  disabled={procesando}
+                  onClick={() => ejecutarAccion('tienda_vender', { p_cantidad: seleccionado.cantidad })}
+                  title={`Vender por ${seleccionado.precio_venta_oro * seleccionado.cantidad} oro`}
+                >
+                  <i className="bi bi-cash-coin"></i>
                 </button>
               )}
 

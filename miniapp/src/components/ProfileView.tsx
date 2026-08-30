@@ -32,7 +32,7 @@ interface ProfileViewProps {
     aura: number;
     elo: number;
   };
-  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes') => void;
+  onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
   // Notifica al padre (Profile.tsx) cada vez que el perfil cambia localmente,
   // para que otras vistas (ej. PoderesView) reciban datos frescos sin recargar.
   onProfileChange?: (perfil: any) => void;

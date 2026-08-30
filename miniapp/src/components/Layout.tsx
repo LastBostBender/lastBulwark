@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { getTheme } from '../utils/themes';
 
-type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes';
+type Vista = 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -204,17 +204,34 @@ export const Layout = ({
 
           <div style={{ width: '80px' }}></div>
 
-          <button
-            onClick={ir('inventario')}
-            className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
-            style={{
-              border: 'none',
-              color: colorTab('inventario')
-            }}
+          <div
+            className="d-flex"
+            style={{ gap: '1.25rem' }}
           >
-            <i className="bi bi-backpack fs-4"></i>
-            <span className="small">Inventario</span>
-          </button>
+            <button
+              onClick={ir('mercado')}
+              className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
+              style={{
+                border: 'none',
+                color: colorTab('mercado')
+              }}
+            >
+              <i className="bi bi-shop fs-4"></i>
+              <span className="small">Calle 13</span>
+            </button>
+
+            <button
+              onClick={ir('inventario')}
+              className="btn btn-outline-light btn-sm d-flex flex-column align-items-center"
+              style={{
+                border: 'none',
+                color: colorTab('inventario')
+              }}
+            >
+              <i className="bi bi-backpack fs-4"></i>
+              <span className="small">Inventario</span>
+            </button>
+          </div>
         </footer>
       </div>
     </div>
