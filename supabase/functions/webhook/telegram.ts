@@ -56,6 +56,27 @@ export async function editMessageText(chatId: number, messageId: number, text: s
   return data;
 }
 
+export async function editMessageReplyMarkup(chatId: number, messageId: number, replyMarkup?: any) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`;
+  const payload: any = { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup ?? { inline_keyboard: [] } };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok || data?.ok === false) {
+    // No es grave si falla (ej. mensaje ya sin botón, o el usuario borró el chat).
+    console.error("editMessageReplyMarkup rechazado:", JSON.stringify(data));
+  }
+  return data;
+}
+
 export async function getChatMember(chatId: number, userId: number) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
   const res = await fetch(url);

@@ -215,6 +215,22 @@ export async function arenaResolverFinalizados(): Promise<any[]> {
   return (Array.isArray(data) ? data : []).map((row: any) => row?.arena_resolver_finalizados ?? row);
 }
 
+export async function arenaGuardarMensajesDm(invitacionId: number, dmInvitadorMensajeId?: number | null, dmAceptanteMensajeId?: number | null) {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/arena_guardar_dm_mensajes`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: SB_HEADERS_JSON,
+    body: JSON.stringify({
+      p_invitacion_id: invitacionId,
+      p_dm_invitador_mensaje_id: dmInvitadorMensajeId ?? null,
+      p_dm_aceptante_mensaje_id: dmAceptanteMensajeId ?? null,
+    }),
+  });
+  if (!res.ok) {
+    console.error("Error guardando mensajes DM de arena:", await res.text());
+  }
+}
+
 export async function arenaGuardarMensaje(invitacionId: number, chatId: number, mensajeId: number) {
   const url = `${SUPABASE_URL}/rest/v1/arena_invitaciones?id=eq.${invitacionId}`;
   const res = await fetch(url, {

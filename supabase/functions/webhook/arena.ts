@@ -1,5 +1,5 @@
 import { MINI_APP_URL } from "./config.ts";
-import { sendMessage, editMessageText, answerCallbackQuery } from "./telegram.ts";
+import { sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery } from "./telegram.ts";
 import {
   isRegistered,
   arenaCrearInvitacion,
@@ -8,6 +8,7 @@ import {
   arenaResolverVencidas,
   arenaResolverFinalizados,
   arenaGuardarMensaje,
+  arenaGuardarMensajesDm,
   obtenerTemaArena,
 } from "./db.ts";
 
@@ -242,18 +243,39 @@ export async function handleArenaCallback(callbackQuery: any) {
     }
 
     await answerCallbackQuery(callbackId, "¡Duelo aceptado!");
+    // La tarjeta pública queda como constancia (quién retó, quién entró), pero sin
+    // botón — el botón real vive en el DM de cada jugador, no en el mensaje público.
     if (chatId && messageId) {
-      await editMessageText(chatId, messageId, mensajeDueloAceptado(resultado), botonAbrirMiniApp(resultado.sesion_combate_id));
+      await editMessageText(chatId, messageId, mensajeDueloAceptado(resultado));
     }
 
-    // DM al invitador: quién se unió + botón flotante a la Mini App.
+    // DM a AMBOS jugadores con su propio botón "Abrir Mini App". Se guarda el
+    // message_id de cada uno para poder quitarles el botón cuando el combate termine.
+    let dmInvitadorId: number | undefined;
+    let dmAceptanteId: number | undefined;
+
     if (resultado.invitador_telegram_id) {
-      const ficha = fichaJugador(resultado.nombre_aceptante, resultado.clase_aceptante, resultado.nivel_aceptante);
-      await sendMessage(
+      const fichaAceptante = fichaJugador(resultado.nombre_aceptante, resultado.clase_aceptante, resultado.nivel_aceptante);
+      const enviado = await sendMessage(
         resultado.invitador_telegram_id,
-        `⚔️ ${ficha} aceptó tu duelo. Ya arrancó — te toca jugar.`,
+        `⚔️ ${fichaAceptante} aceptó tu duelo. Ya arrancó — te toca jugar.`,
         botonAbrirMiniApp(resultado.sesion_combate_id)
       );
+      dmInvitadorId = enviado?.result?.message_id;
+    }
+
+    {
+      const fichaInvitador = fichaJugador(resultado.nombre_invitador, resultado.clase_invitador, resultado.nivel_invitador);
+      const enviado = await sendMessage(
+        telegramId,
+        `⚔️ Aceptaste el duelo contra ${fichaInvitador}. ¡A pelear!`,
+        botonAbrirMiniApp(resultado.sesion_combate_id)
+      );
+      dmAceptanteId = enviado?.result?.message_id;
+    }
+
+    if (dmInvitadorId || dmAceptanteId) {
+      await arenaGuardarMensajesDm(invitacionId, dmInvitadorId, dmAceptanteId);
     }
     return;
   }
@@ -316,15 +338,18 @@ export async function tickArena() {
       if (r.chat_id && r.mensaje_id) {
         await editMessageText(r.chat_id, r.mensaje_id, texto);
       } else if (r.chat_id) {
-        await sendMessage(r.chat_id, texto, botonAbrirMiniApp(r.sesion_id));
+        await sendMessage(r.chat_id, texto);
       }
 
       if (r.invitador_telegram_id) {
-        await sendMessage(
+        const enviado = await sendMessage(
           r.invitador_telegram_id,
           `⏰ Nadie aceptó tu duelo a tiempo. Te toca contra ${r.nombre_mob} (nivel ${r.nivel_mob}) en su lugar.`,
           botonAbrirMiniApp(r.sesion_id)
         );
+        if (enviado?.result?.message_id) {
+          await arenaGuardarMensajesDm(r.invitacion_id, enviado.result.message_id, null);
+        }
       }
     } else if (r.estado === "cancelada_sin_rival") {
       if (r.chat_id && r.mensaje_id) {
@@ -335,7 +360,17 @@ export async function tickArena() {
 
   const finalizados = await arenaResolverFinalizados();
   for (const r of finalizados) {
-    if (!r.chat_id) continue;
-    await sendMessage(r.chat_id, mensajeResultadoDuelo(r), undefined, r.topic_arena_id ?? undefined);
+    if (r.chat_id) {
+      await sendMessage(r.chat_id, mensajeResultadoDuelo(r), undefined, r.topic_arena_id ?? undefined);
+    }
+
+    // El botón "Abrir Mini App" de cada DM ya cumplió su función — se quita, pero
+    // el mensaje (quién retó, quién entró) queda como estaba.
+    if (r.invitador_telegram_id && r.dm_invitador_mensaje_id) {
+      await editMessageReplyMarkup(r.invitador_telegram_id, r.dm_invitador_mensaje_id);
+    }
+    if (r.aceptante_telegram_id && r.dm_aceptante_mensaje_id) {
+      await editMessageReplyMarkup(r.aceptante_telegram_id, r.dm_aceptante_mensaje_id);
+    }
   }
 }
