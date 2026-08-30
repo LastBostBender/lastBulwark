@@ -292,6 +292,8 @@ const MENSAJES_MOB_FALLBACK = [
 
 // Paso 3: el aviso de resultado ahora muestra las recompensas reales que ya paga
 // arena_resolver_finalizados (Elo, XP, Aura) — antes solo decía quién ganó.
+// "Elo" es jerga de ajedrez; de cara al jugador el mismo sistema de puntuación
+// se llama "Rango" (el cálculo interno sigue siendo Elo estándar, K=32).
 // Arbol prolijo: la última línea de cada bloque usa └─, las anteriores ├─.
 // Se omiten líneas en 0 (ej. Aura si aura_ganada es 0) para no ensuciar el árbol.
 function lineaArbol(items: string[]): string {
@@ -309,11 +311,11 @@ function mensajeResultadoDuelo(r: any): string {
 
   // elo_delta es siempre >= 0 (formula estandar 32*(1-esperado_ganador), esperado en (0,1)):
   // el ganador siempre suma, el perdedor siempre resta la misma magnitud.
-  const itemsGanador = [`🏁 +${r.elo_delta} Elo`];
+  const itemsGanador = [`🏁 +${r.elo_delta} Rango`];
   if (r.xp_ganador) itemsGanador.push(`✨️ +${r.xp_ganador} XP`);
   if (r.aura_ganada) itemsGanador.push(`🎟 +${r.aura_ganada} Aura`);
 
-  const itemsPerdedor = [`🏁 -${r.elo_delta} Elo`];
+  const itemsPerdedor = [`🏁 -${r.elo_delta} Rango`];
   if (r.xp_perdedor) itemsPerdedor.push(`✨️ +${r.xp_perdedor} XP`);
 
   const lineas = [

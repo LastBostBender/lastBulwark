@@ -123,7 +123,10 @@ export const Layout = ({
         className="flex-grow-1 overflow-auto px-3"
         style={{
           paddingTop: `${headerHeight + 8}px`,
-          paddingBottom: '80px',
+          // El botón flotante de "perfil" sobresale 28px por encima del footer
+          // (que mide 60px), así que el contenido necesita al menos 88px de aire
+          // para no quedar tapado. Se deja margen extra (104px) de colchón.
+          paddingBottom: '104px',
           marginBottom: '0',
           backgroundColor: theme.bg,
           color: theme.text
