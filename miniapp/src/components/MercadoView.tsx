@@ -23,24 +23,27 @@ type CategoriaId =
 interface Categoria {
   id: CategoriaId;
   titulo: string;
+  nombreTienda: string;
   icono: string; // sin el prefijo 'bi-'
   navegable: boolean;
 }
 
 // Orden pedido: equipo primero por slot, después Chatarra/Consumibles/Aura, crafteo al final.
 // Ícono de cada slot reutiliza el mismo mapeo que InventarioView (ICONO_SLOT) para consistencia visual.
+// "titulo" es la etiqueta corta del mosaico; "nombreTienda" es el nombre con tono del juego,
+// el que se muestra en el encabezado al entrar a la tienda.
 const CATEGORIAS: Categoria[] = [
-  { id: 'cabeza', titulo: 'Cabeza', icono: 'sunglasses', navegable: true },
-  { id: 'torso', titulo: 'Torso', icono: 'postage-fill', navegable: true },
-  { id: 'pantalones', titulo: 'Pantalones', icono: 'box', navegable: true },
-  { id: 'pies', titulo: 'Pies', icono: 'cloud-fog2', navegable: true },
-  { id: 'accesorio', titulo: 'Accesorio', icono: 'watch', navegable: true },
-  { id: 'arma', titulo: 'Arma', icono: 'hammer', navegable: true },
-  { id: 'chatarra', titulo: 'Chatarra', icono: 'gear-wide-connected', navegable: true },
-  { id: 'usable', titulo: 'Consumibles', icono: 'apple', navegable: true },
-  { id: 'aura', titulo: 'Tienda de Aura', icono: 'ticket-detailed', navegable: true },
-  { id: 'alquimia', titulo: 'Alquimia', icono: 'beaker', navegable: false },
-  { id: 'herreria', titulo: 'Herrería', icono: 'bricks', navegable: false },
+  { id: 'cabeza', titulo: 'Cabeza', nombreTienda: 'Sombrerería del Síndrome del Impostor', icono: 'sunglasses', navegable: true },
+  { id: 'torso', titulo: 'Torso', nombreTienda: 'Blindaje Corporativo', icono: 'postage-fill', navegable: true },
+  { id: 'pantalones', titulo: 'Pantalones', nombreTienda: 'Pantalones de la Última Oportunidad', icono: 'box', navegable: true },
+  { id: 'pies', titulo: 'Pies', nombreTienda: 'Zapatería de la Huida Estratégica', icono: 'cloud-fog2', navegable: true },
+  { id: 'accesorio', titulo: 'Accesorio', nombreTienda: 'Bisutería del Networking', icono: 'watch', navegable: true },
+  { id: 'arma', titulo: 'Arma', nombreTienda: 'Ferretería del Ultimátum', icono: 'hammer', navegable: true },
+  { id: 'chatarra', titulo: 'Chatarra', nombreTienda: 'Chatarrería "Total, Algo Vale"', icono: 'gear-wide-connected', navegable: true },
+  { id: 'usable', titulo: 'Consumibles', nombreTienda: 'Farmacia de Guardia Emocional', icono: 'apple', navegable: true },
+  { id: 'aura', titulo: 'Tienda de Aura', nombreTienda: 'Casa de Cambio de Vibras', icono: 'ticket-detailed', navegable: true },
+  { id: 'alquimia', titulo: 'Alquimia', nombreTienda: 'Laboratorio Clandestino', icono: 'beaker', navegable: false },
+  { id: 'herreria', titulo: 'Herrería', nombreTienda: 'Taller de Turno Extra', icono: 'bricks', navegable: false },
 ];
 
 interface ItemTienda {
@@ -52,7 +55,27 @@ interface ItemTienda {
   origen: 'tienda_oro' | 'tienda_aura';
   valor_base: number | null;
   precio_compra_aura: number | null;
+  tipo: 'equipamiento' | 'usable' | 'chatarra';
+  slot_equipo: string | null;
+  efecto: { stats?: Record<string, number>; pasiva?: string | null } | null;
+  powers: { nombre: string; descripcion: string; icono: string }[] | null;
 }
+
+const NOMBRE_STAT: Record<string, string> = {
+  ataque_fisico: 'Ataque físico',
+  ataque_magico: 'Ataque mágico',
+  defensa_fisica: 'Defensa física',
+  defensa_magica: 'Defensa mágica',
+  ps_actual: 'Puntos de salud',
+  ps_max: 'Puntos de salud máx.',
+  pm_actual: 'Puntos de maná',
+  pm_max: 'Puntos de maná máx.',
+  precision_stat: 'Precisión',
+  escape: 'Escape',
+  velocidad: 'Velocidad',
+  critico: 'Crítico',
+};
+const nombreStat = (clave: string) => NOMBRE_STAT[clave] ?? clave.replace(/_/g, ' ');
 
 const MOTIVO_MENSAJE: Record<string, string> = {
   cantidad_invalida: 'Cantidad inválida.',
@@ -73,6 +96,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
   const [comprando, setComprando] = useState<number | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [avisoCrafteo, setAvisoCrafteo] = useState<Categoria | null>(null);
+  const [detalle, setDetalle] = useState<ItemTienda | null>(null);
 
   const abrirCategoria = useCallback(async (cat: Categoria) => {
     if (!cat.navegable) {
@@ -85,7 +109,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
 
     let query = supabase
       .from('item_definitions')
-      .select('id, nombre, descripcion, icono, nivel_minimo, origen, valor_base, precio_compra_aura');
+      .select('id, nombre, descripcion, icono, nivel_minimo, origen, valor_base, precio_compra_aura, tipo, slot_equipo, efecto, powers(nombre, descripcion, icono)');
 
     if (cat.id === 'aura') {
       query = query.eq('origen', 'tienda_aura');
@@ -239,7 +263,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
               >
                 <i className="bi bi-arrow-left"></i>
               </button>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem' }}>{categoria.titulo}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem' }}>{categoria.nombreTienda}</span>
             </div>
 
             {mensaje && (
@@ -251,7 +275,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
             {cargandoItems && <p className="text-center mt-4">Cargando...</p>}
 
             {!cargandoItems && items.length === 0 && (
-              <p className="text-center mt-4" style={{ opacity: 0.7 }}>Todavía no hay nada cargado acá.</p>
+              <p className="text-center mt-4" style={{ opacity: 0.7 }}>Todavía no hay nada disponible en esta sección.</p>
             )}
 
             <div className="d-flex flex-column" style={{ gap: '0.6rem' }}>
@@ -283,6 +307,14 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
                       </div>
                     </div>
                     <button
+                      className="btn btn-sm d-flex align-items-center justify-content-center"
+                      onClick={() => setDetalle(item)}
+                      style={{ border: `1px solid ${theme.text}80`, color: theme.text, backgroundColor: 'transparent', width: '2rem', height: '2rem', padding: 0 }}
+                      title="Inspeccionar"
+                    >
+                      <i className="bi bi-eye"></i>
+                    </button>
+                    <button
                       className="btn btn-sm"
                       disabled={deshabilitado}
                       onClick={() => comprar(item)}
@@ -298,6 +330,73 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ---- Modal de inspección ---- */}
+        {detalle && (
+          <div
+            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 50 }}
+            onClick={() => setDetalle(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '320px',
+                backgroundColor: theme.cardBg,
+                border: `2px solid ${theme.accent}`,
+                borderRadius: '8px',
+                padding: '1rem',
+                color: theme.text,
+              }}
+            >
+              <div className="d-flex align-items-center mb-2" style={{ gap: '0.5rem' }}>
+                <i className={`bi bi-${detalle.icono || 'question-circle'}`} style={{ fontSize: '1.4rem', color: theme.accent }}></i>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>{detalle.nombre}</span>
+              </div>
+
+              <div style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                {detalle.nivel_minimo > 1 && `Nivel mín. ${detalle.nivel_minimo}`}
+              </div>
+
+              <p style={{ fontSize: '0.95rem', marginBottom: '0.6rem' }}>{detalle.descripcion}</p>
+
+              {detalle.tipo !== 'chatarra' && (
+                <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '0.5rem', marginBottom: '0.6rem', fontSize: '0.85rem' }}>
+                  {detalle.efecto?.stats && Object.keys(detalle.efecto.stats).length > 0 && (
+                    <div className="mb-1">
+                      {Object.entries(detalle.efecto.stats).map(([k, v]) => (
+                        <div key={k}>{nombreStat(k)}: {v > 0 ? `+${v}` : v}</div>
+                      ))}
+                    </div>
+                  )}
+                  {detalle.efecto?.pasiva && <div>Pasiva: {detalle.efecto.pasiva}</div>}
+                  {detalle.powers && detalle.powers[0] && (
+                    <div>
+                      <i className={`bi bi-${detalle.powers[0].icono || 'stars'} me-1`}></i>
+                      Función: {detalle.powers[0].nombre}
+                      {detalle.powers[0].descripcion && ` — ${detalle.powers[0].descripcion}`}
+                    </div>
+                  )}
+                  {!detalle.efecto?.stats && !detalle.efecto?.pasiva && !(detalle.powers && detalle.powers[0]) && (
+                    <div style={{ opacity: 0.7 }}>Sin efecto asociado.</div>
+                  )}
+                </div>
+              )}
+
+              <div className="d-flex justify-content-end">
+                <button
+                  className="btn btn-sm"
+                  disabled={comprando === detalle.id}
+                  onClick={() => { comprar(detalle); setDetalle(null); }}
+                  style={{ border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                >
+                  Comprar
+                </button>
+              </div>
             </div>
           </div>
         )}

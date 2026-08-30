@@ -30,7 +30,7 @@ export const themes: Record<string, {
     headerBg: '#f7ece1',
     footerBg: '#f7ece1',
     cardBg: '#ffffff',
-    accent: '#b8e1d0',
+    accent: '#4a9d82',
     badge: '#d5b3d9',
     fontDisplay: "'Quicksand', sans-serif",
     fontBody: "'Nunito', sans-serif",
