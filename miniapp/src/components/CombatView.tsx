@@ -11,10 +11,17 @@ interface CombatViewProps {
     nombre_personaje: string;
   };
   onProfileChange?: (perfil: any) => void;
+  // El backend limpia perfil.estado/sesion_combate_id apenas termina el combate
+  // (combat_sincronizar_perfil), pero el jugador todavia tiene que ver la
+  // pantalla de resultado. Este callback le avisa a Profile.tsx que siga
+  // montando CombatView aunque perfil.estado ya haya vuelto a 'en_descanso',
+  // hasta que el propio jugador cierre el resultado.
+  onResultadoVisibleChange?: (visible: boolean) => void;
 }
 
 interface Sesion {
   id: number;
+  tipo: 'mazmorra' | 'mini_boss' | 'arena';
   estado: 'en_curso' | 'victoria' | 'derrota' | 'cancelado';
   turno_actual: number;
   ronda: number;
@@ -38,6 +45,8 @@ interface Combatiente {
   pm_max: number;
   escape: number;
   cooldowns: Record<string, number>;
+  dano_realizado: number;
+  dano_recibido: number;
 }
 
 interface LogEntry {
@@ -162,9 +171,17 @@ const MiniBarra = ({
   </div>
 );
 
-export const CombatView = ({ perfil }: CombatViewProps) => {
+export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps) => {
   const theme = getTheme(perfil.zona);
-  const sesionId = perfil.sesion_combate_id;
+  // Congelado: una vez que hay un id real, se queda con ese aunque el backend
+  // limpie perfil.sesion_combate_id al terminar el combate (ver comentario
+  // en CombatViewProps). Sin esto, la pantalla de resultado se queda sin
+  // saber de qué sesion leer datos apenas termina la pelea.
+  const sesionIdRef = useRef<number | null>(null);
+  if (perfil.sesion_combate_id != null) {
+    sesionIdRef.current = perfil.sesion_combate_id;
+  }
+  const sesionId = sesionIdRef.current;
 
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -210,6 +227,57 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
   // Cargar cola
   const [errorCola, setErrorCola] = useState<string | null>(null);
   const [intentoCola, setIntentoCola] = useState(0);
+
+  // --- Pantalla de resultado (reemplaza el corte feo directo a perfil) ---
+  const [resultadoCerrado, setResultadoCerrado] = useState(false);
+  const [resultadoArena, setResultadoArena] = useState<{
+    elo_delta: number | null;
+    xp: number;
+    aura_ganada: number;
+    posicion: number | null;
+    cambio: number | null;
+  } | null>(null);
+  const resultadoCargadoRef = useRef(false);
+
+  useEffect(() => {
+    if (!sesion || sesion.estado === 'en_curso') return;
+    onResultadoVisibleChange?.(true);
+    if (resultadoCargadoRef.current) return;
+    resultadoCargadoRef.current = true;
+
+    if (sesion.tipo !== 'arena' || !sesionId) return;
+
+    (async () => {
+      const { data: inv } = await supabase
+        .from('arena_invitaciones')
+        .select('id, elo_delta, xp_ganador, xp_perdedor, aura_ganada, ganador_telegram_id')
+        .eq('sesion_combate_id', sesionId)
+        .maybeSingle();
+
+      if (!inv) return;
+
+      const soyGanador = inv.ganador_telegram_id === perfil.telegram_id;
+      const eloPropio = inv.elo_delta == null ? null : (soyGanador ? inv.elo_delta : -inv.elo_delta);
+
+      const { data: ranking } = await supabase.rpc('arena_ranking_cambio', {
+        p_invitacion_id: inv.id,
+        p_telegram_id: perfil.telegram_id,
+      });
+
+      setResultadoArena({
+        elo_delta: eloPropio,
+        xp: soyGanador ? inv.xp_ganador : inv.xp_perdedor,
+        aura_ganada: soyGanador ? inv.aura_ganada : 0,
+        posicion: ranking?.ok ? ranking.posicion_actual : null,
+        cambio: ranking?.ok ? ranking.cambio : null,
+      });
+    })();
+  }, [sesion?.estado, sesion?.tipo, sesionId, perfil.telegram_id, onResultadoVisibleChange]);
+
+  const cerrarResultado = () => {
+    setResultadoCerrado(true);
+    onResultadoVisibleChange?.(false);
+  };
 
   useEffect(() => {
     if (perfil.estado !== 'en_cola') return;
@@ -356,7 +424,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           supabase
             .from('combat_sesiones')
             .select(
-              'id, estado, turno_actual, ronda, oleada_actual, oleadas, votacion_huida',
+              'id, tipo, estado, turno_actual, ronda, oleada_actual, oleadas, votacion_huida',
             )
             .eq('id', sesionId)
             .abortSignal(controller.signal)
@@ -912,6 +980,88 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
   const combateTerminado =
     sesion.estado !== 'en_curso';
+
+  if (combateTerminado && !resultadoCerrado) {
+    const yo = combatientes.find((c) => c.telegram_id === perfil.telegram_id);
+    const gano = sesion.estado === 'victoria';
+    const titulo = gano ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado';
+
+    return (
+      <div
+        className="d-flex flex-column align-items-center justify-content-center text-center px-4"
+        style={{
+          minHeight: '100vh',
+          backgroundColor: theme.bg,
+          color: theme.text,
+          fontFamily: 'var(--font-body)',
+        }}
+      >
+        <h2 className="mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+          {titulo}
+        </h2>
+
+        {yo && (
+          <div className="mb-4" style={{ opacity: 0.9 }}>
+            <div>
+              <i className="bi bi-lightning-charge me-2" />
+              Daño realizado: <strong>{yo.dano_realizado}</strong>
+            </div>
+            <div>
+              <i className="bi bi-shield-shaded me-2" />
+              Daño recibido: <strong>{yo.dano_recibido}</strong>
+            </div>
+          </div>
+        )}
+
+        {resultadoArena && (
+          <div className="mb-4 d-flex flex-column gap-2" style={{ minWidth: '220px' }}>
+            {resultadoArena.posicion != null && (
+              <div>
+                <i className="bi bi-award me-2" />
+                Rango #{resultadoArena.posicion}
+                {resultadoArena.cambio != null && resultadoArena.cambio !== 0 && (
+                  <span
+                    className="ms-2"
+                    style={{ color: resultadoArena.cambio > 0 ? '#4caf50' : '#e05353' }}
+                  >
+                    <i className={`bi bi-arrow-${resultadoArena.cambio > 0 ? 'up' : 'down'}`} />
+                    {Math.abs(resultadoArena.cambio)}
+                  </span>
+                )}
+              </div>
+            )}
+            {resultadoArena.elo_delta != null && (
+              <div>
+                Elo: {resultadoArena.elo_delta >= 0 ? '+' : ''}
+                {resultadoArena.elo_delta}
+              </div>
+            )}
+            <div>
+              <i className="bi bi-ticket-detailed me-2" />
+              Aura: +{resultadoArena.aura_ganada}
+            </div>
+            <div>
+              <i className="bi bi-star me-2" />
+              XP: +{resultadoArena.xp}
+            </div>
+          </div>
+        )}
+
+        <button
+          className="btn rounded-circle d-flex align-items-center justify-content-center mt-2"
+          style={{
+            width: '64px',
+            height: '64px',
+            backgroundColor: theme.accent,
+            border: 'none',
+          }}
+          onClick={cerrarResultado}
+        >
+          <i className="bi bi-check-lg" style={{ fontSize: '1.8rem' }} />
+        </button>
+      </div>
+    );
+  }
 
   const accionActiva:
     | {

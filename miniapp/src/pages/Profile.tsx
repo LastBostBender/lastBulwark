@@ -20,6 +20,10 @@ export const Profile = () => {
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('perfil');
   const [intento, setIntento] = useState(0);
+  // El bot flipea perfil.estado a 'en_descanso' apenas termina el combate,
+  // pero el jugador todavia esta viendo la pantalla de resultado dentro de
+  // CombatView — no desmontar hasta que el propio CombatView avise que ya se cerro.
+  const [viendoResultado, setViendoResultado] = useState(false);
 
   // Obtener ID real de Telegram
   const user = TelegramWebApp.initDataUnsafe?.user;
@@ -136,8 +140,14 @@ export const Profile = () => {
   // El bloqueo de combate tiene prioridad sobre la navegación por tabs:
   // si el bot cambió perfil.estado a 'en_cola' o 'en_combate' (vía Realtime,
   // arriba), no importa en qué vista estabas.
-  if (perfil.estado === 'en_cola' || perfil.estado === 'en_combate') {
-    return <CombatView perfil={perfil} onProfileChange={setPerfil} />;
+  if (perfil.estado === 'en_cola' || perfil.estado === 'en_combate' || viendoResultado) {
+    return (
+      <CombatView
+        perfil={perfil}
+        onProfileChange={setPerfil}
+        onResultadoVisibleChange={setViendoResultado}
+      />
+    );
   }
 
   if (vista === 'poderes') {
