@@ -81,12 +81,37 @@ interface Poder {
   id: number;
   nombre: string;
   icono: string;
+  costo_pm_base: number | null;
   parametros: {
     efectos: Array<{
       trigger: string;
       target: string;
     }>;
   };
+}
+
+// Réplica en el frontend de combat_costo_mana (SQL): mismo costo base +
+// franjas por nivel. Es solo para mostrar el número antes de tirar el
+// poder — el backend sigue siendo la fuente de verdad, esto no reemplaza
+// el rechazo de combat_ejecutar_accion si no alcanza el maná.
+function costoManaPoder(
+  costoBase: number | null,
+  nivel: number,
+): number | null {
+  if (costoBase === null || costoBase === undefined) return null;
+  const franja =
+    nivel <= 9
+      ? 0
+      : nivel <= 19
+        ? 1
+        : nivel <= 29
+          ? 3
+          : nivel <= 39
+            ? 5
+            : nivel <= 49
+              ? 9
+              : 14;
+  return costoBase + franja;
 }
 
 type Categoria =
@@ -355,7 +380,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           supabase
             .from('character_powers')
             .select(
-              'powers(id, nombre, icono, parametros, tipo)',
+              'powers(id, nombre, icono, costo_pm_base, parametros, tipo)',
             )
             .eq('telegram_id', perfil.telegram_id)
             .abortSignal(controller.signal),
@@ -1337,11 +1362,13 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
                         color="#c0392b"
                       />
 
-                      <MiniBarra
-                        actual={obj.pm_actual}
-                        max={obj.pm_max}
-                        color="#2980b9"
-                      />
+                      {obj.tipo === 'jugador' && (
+                        <MiniBarra
+                          actual={obj.pm_actual}
+                          max={obj.pm_max}
+                          color="#2980b9"
+                        />
+                      )}
                     </button>
                   ))}
 
@@ -1381,17 +1408,20 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
                       color="#c0392b"
                     />
 
-                    <MiniBarra
-                      actual={
-                        objetivosPosibles[4]
-                          .pm_actual
-                      }
-                      max={
-                        objetivosPosibles[4]
-                          .pm_max
-                      }
-                      color="#2980b9"
-                    />
+                    {objetivosPosibles[4].tipo ===
+                      'jugador' && (
+                      <MiniBarra
+                        actual={
+                          objetivosPosibles[4]
+                            .pm_actual
+                        }
+                        max={
+                          objetivosPosibles[4]
+                            .pm_max
+                        }
+                        color="#2980b9"
+                      />
+                    )}
                   </button>
                 )}
               </div>
@@ -1436,31 +1466,74 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
               )}
 
               {poderesDisponibles.map(
-                (poder) => (
-                  <button
-                    key={poder.id}
-                    disabled={enviando}
-                    onClick={() =>
-                      tocarPoder(poder)
-                    }
-                    className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center"
-                  >
-                    <i
-                      className={`bi bi-${
-                        poder.icono ??
-                        'stars'
-                      } fs-5`}
-                    />
+                (poder) => {
+                  const costoMana =
+                    costoManaPoder(
+                      poder.costo_pm_base,
+                      miCombatiente?.nivel ?? 1,
+                    );
 
-                    <span
+                  return (
+                    <button
+                      key={poder.id}
+                      disabled={enviando}
+                      onClick={() =>
+                        tocarPoder(poder)
+                      }
+                      className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center"
                       style={{
-                        fontSize: '0.7rem',
+                        position: 'relative',
                       }}
                     >
-                      {poder.nombre}
-                    </span>
-                  </button>
-                ),
+                      {costoMana !== null && (
+                        <span
+                          style={{
+                            position:
+                              'absolute',
+                            top: '3px',
+                            right: '4px',
+                            display: 'flex',
+                            alignItems:
+                              'center',
+                            gap: '2px',
+                            fontSize: '0.65rem',
+                            lineHeight: 1,
+                            color: '#2980b9',
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: '6px',
+                              height: '6px',
+                              borderRadius:
+                                '50%',
+                              backgroundColor:
+                                '#2980b9',
+                              boxShadow:
+                                '0 0 4px #2980b9',
+                            }}
+                          />
+                          {costoMana}
+                        </span>
+                      )}
+
+                      <i
+                        className={`bi bi-${
+                          poder.icono ??
+                          'stars'
+                        } fs-5`}
+                      />
+
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        {poder.nombre}
+                      </span>
+                    </button>
+                  );
+                },
               )}
             </div>
 
