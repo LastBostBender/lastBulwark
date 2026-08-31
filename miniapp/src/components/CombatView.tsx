@@ -723,15 +723,28 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
 
     if (cat === null) {
       ejecutar('poder', poder.id);
-    } else if (
+      return;
+    }
+
+    if (
       cat === 'area_enemigos' ||
       cat === 'area_aliados' ||
       cat === 'area_todos'
     ) {
-      setPoderSeleccionado(poder);
-    } else {
-      setPoderSeleccionado(poder);
+      // AoE: el poder ya va a "todos" por diseño, no hay nada que elegir.
+      ejecutar('poder', poder.id);
+      return;
     }
+
+    // Objetivo unico: si solo queda un blanco posible, no tiene sentido
+    // pedir que lo elijan — se dispara directo contra ese.
+    const objetivos = objetivosPara(cat);
+    if (objetivos.length === 1) {
+      ejecutar('poder', poder.id, objetivos[0].id);
+      return;
+    }
+
+    setPoderSeleccionado(poder);
   };
 
   // --- Render: cola ---
@@ -923,33 +936,28 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
           )
         : null;
 
-  const objetivosPosibles =
-    categoria === 'enemigo' ||
-    categoria === 'area_enemigos'
+  const objetivosPara = (cat: Categoria) =>
+    cat === 'enemigo' || cat === 'area_enemigos'
       ? combatientes.filter(
           (c) =>
             c.bando !==
               miCombatiente?.bando &&
             c.vivo,
         )
-      : categoria === 'aliado' ||
-          categoria === 'area_aliados'
+      : cat === 'aliado' || cat === 'area_aliados'
         ? combatientes.filter(
             (c) =>
               c.bando ===
                 miCombatiente?.bando &&
               c.vivo,
           )
-        : categoria === 'area_todos'
+        : cat === 'area_todos'
           ? combatientes.filter(
               (c) => c.vivo,
             )
           : [];
 
-  const esArea =
-    categoria === 'area_enemigos' ||
-    categoria === 'area_aliados' ||
-    categoria === 'area_todos';
+  const objetivosPosibles = objetivosPara(categoria);
 
   const seleccionarObjetivo = (
     objetivoId: number,
@@ -969,15 +977,6 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
         objetivoId,
       );
     }
-  };
-
-  const usarArea = () => {
-    if (!accionActiva?.poder) return;
-
-    ejecutar(
-      'poder',
-      accionActiva.poder.id,
-    );
   };
 
   return (
@@ -1321,16 +1320,7 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
               </button>
             </div>
 
-            {esArea ? (
-              <button
-                className="btn btn-outline-light w-100 py-3"
-                disabled={enviando}
-                onClick={usarArea}
-              >
-                Todos
-              </button>
-            ) : (
-              <div
+            <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
@@ -1425,7 +1415,6 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
                   </button>
                 )}
               </div>
-            )}
           </div>
         ) : (
           // --- Selección de poder / arma / inventario / huir ---
@@ -1546,9 +1535,14 @@ export const CombatView = ({ perfil }: CombatViewProps) => {
             >
               <button
                 disabled={enviando}
-                onClick={() =>
-                  setAccionArma(true)
-                }
+                onClick={() => {
+                  const objetivos = objetivosPara('enemigo');
+                  if (objetivos.length === 1) {
+                    ejecutar('golpe', undefined, objetivos[0].id);
+                  } else {
+                    setAccionArma(true);
+                  }
+                }}
                 className="btn btn-outline-light flex-grow-1"
               >
                 <i className="bi bi-hammer" />
