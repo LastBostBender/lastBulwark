@@ -92,7 +92,26 @@ export const Profile = () => {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `telegram_id=eq.${TELEGRAM_ID}` },
-        (payload) => setPerfil((prev: any) => ({ ...prev, ...payload.new }))
+        (payload) => {
+          // Condición de carrera real: este canal (profiles) y el que escucha
+          // CombatView (combat_sesiones) son dos suscripciones Realtime
+          // independientes. El backend cambia ambas filas en el mismo commit
+          // (combat_sincronizar_perfil), pero nada garantiza que el cliente
+          // reciba los dos mensajes en ese orden. Si este llega primero, no
+          // podemos esperar a que CombatView "avise" que ya vio el resultado
+          // (setViendoResultado desde su propio efecto) — para entonces ya
+          // podríamos haberlo desmontado. Por eso la transición se detecta
+          // ACÁ, en el mismo evento, comparando contra el estado previo real
+          // (prev, no una clausura vieja).
+          setPerfil((prev: any) => {
+            const estabaEnCombate = prev?.estado === 'en_cola' || prev?.estado === 'en_combate';
+            const yaNoEsta = payload.new.estado !== 'en_cola' && payload.new.estado !== 'en_combate';
+            if (estabaEnCombate && yaNoEsta) {
+              setViendoResultado(true);
+            }
+            return { ...prev, ...payload.new };
+          });
+        }
       )
       .subscribe();
 
