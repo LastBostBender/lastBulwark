@@ -36,6 +36,7 @@ interface ItemRow {
   power_icono: string | null;
   nivel_minimo: number;
   precio_venta_oro: number | null;
+  contexto_uso: 'descanso' | 'combate';
 }
 
 const CAPACIDAD: Record<ItemTipo, number> = {
@@ -127,6 +128,8 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   cantidad_invalida: 'Cantidad inválida.',
   nivel_insuficiente: 'Tu nivel no alcanza para equipar esto.',
   no_vendible: 'Ese objeto no se puede vender.',
+  exclusivo_de_combate: 'Ese consumible solo se puede usar en combate.',
+  buff_ya_activo: 'Ya tienes ese efecto activo. Espera a que termine.',
 };
 
 export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
@@ -489,10 +492,10 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               {seleccionado.tipo === 'usable' && (
                 <button
                   className="btn rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
-                  disabled={procesando}
+                  style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent', opacity: seleccionado.contexto_uso === 'combate' ? 0.4 : 1 }}
+                  disabled={procesando || seleccionado.contexto_uso === 'combate'}
                   onClick={() => ejecutarAccion('inv_usar')}
-                  title="Usar"
+                  title={seleccionado.contexto_uso === 'combate' ? 'Exclusivo de combate' : 'Usar'}
                 >
                   <i className="bi bi-person-plus"></i>
                 </button>

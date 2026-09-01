@@ -100,12 +100,14 @@ interface Poder {
 }
 
 // Solo los campos que necesita la botonera de inventario dentro del combate.
-// Consumibles: tipo === 'usable' en la respuesta de inv_obtener.
+// Consumibles de combate: tipo === 'usable' && contexto_uso === 'combate'
+// en la respuesta de inv_obtener (los de descanso son exclusivos del descanso).
 interface ItemUsable {
   character_item_id: number;
   nombre: string;
   icono: string;
   tipo: string;
+  contexto_uso: 'descanso' | 'combate';
   cantidad: number;
 }
 
@@ -916,7 +918,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
     }
 
     const usables = ((data ?? []) as ItemUsable[]).filter(
-      (it) => it.tipo === 'usable',
+      (it) => it.tipo === 'usable' && it.contexto_uso === 'combate',
     );
     setItemsUsables(usables);
   };
