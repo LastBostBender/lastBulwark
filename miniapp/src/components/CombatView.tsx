@@ -237,33 +237,37 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
     posicion: number | null;
     cambio: number | null;
   } | null>(null);
-  const resultadoCargadoRef = useRef(false);
 
   useEffect(() => {
     if (!sesion || sesion.estado === 'en_curso') return;
     onResultadoVisibleChange?.(true);
-    if (resultadoCargadoRef.current) return;
-    resultadoCargadoRef.current = true;
-
     if (sesion.tipo !== 'arena' || !sesionId) return;
 
-    (async () => {
+    let activo = true;
+
+    const cargarResultado = async () => {
       const { data: inv } = await supabase
         .from('arena_invitaciones')
         .select('id, elo_delta, xp_ganador, xp_perdedor, aura_ganada, ganador_telegram_id')
         .eq('sesion_combate_id', sesionId)
         .maybeSingle();
 
-      if (!inv) return;
+      // arena_resolver_finalizados (el cron que calcula Elo/XP/Aura) corre en el
+      // tick de cron (~60s), no al instante en que termina el combate — puede
+      // que la fila todavía no tenga los valores cuando esta pantalla aparece.
+      // No pintamos nada todavía: la suscripción de abajo reintenta apenas
+      // llegue el UPDATE real con los datos ya calculados.
+      if (!activo || !inv || inv.elo_delta == null) return;
 
       const soyGanador = inv.ganador_telegram_id === perfil.telegram_id;
-      const eloPropio = inv.elo_delta == null ? null : (soyGanador ? inv.elo_delta : -inv.elo_delta);
+      const eloPropio = soyGanador ? inv.elo_delta : -inv.elo_delta;
 
       const { data: ranking } = await supabase.rpc('arena_ranking_cambio', {
         p_invitacion_id: inv.id,
         p_telegram_id: perfil.telegram_id,
       });
 
+      if (!activo) return;
       setResultadoArena({
         elo_delta: eloPropio,
         xp: soyGanador ? inv.xp_ganador : inv.xp_perdedor,
@@ -271,7 +275,28 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
         posicion: ranking?.ok ? ranking.posicion_actual : null,
         cambio: ranking?.ok ? ranking.cambio : null,
       });
-    })();
+    };
+
+    cargarResultado();
+
+    const canal = supabase
+      .channel(`arena_resultado_${sesionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'arena_invitaciones',
+          filter: `sesion_combate_id=eq.${sesionId}`,
+        },
+        () => cargarResultado(),
+      )
+      .subscribe();
+
+    return () => {
+      activo = false;
+      supabase.removeChannel(canal);
+    };
   }, [sesion?.estado, sesion?.tipo, sesionId, perfil.telegram_id, onResultadoVisibleChange]);
 
   const cerrarResultado = () => {
@@ -983,8 +1008,15 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
   if (combateTerminado && !resultadoCerrado) {
     const yo = combatientes.find((c) => c.telegram_id === perfil.telegram_id);
-    const gano = sesion.estado === 'victoria';
-    const titulo = gano ? '🏆 ¡Victoria!' : sesion.estado === 'derrota' ? '💀 Derrota' : 'Encuentro cancelado';
+    // sesion.estado es GLOBAL (victoria/derrota de bando 1). En mini-jefe eso
+    // alcanza porque bando 1 siempre son los jugadores — pero en un duelo de
+    // arena 1v1, bando 1 y bando 2 son AMBOS jugadores reales, así que hay que
+    // mirar de qué bando es quien está mirando la pantalla, no el string global.
+    const miBando = yo?.bando ?? 1;
+    const terminoEnJuego = sesion.estado === 'victoria' || sesion.estado === 'derrota';
+    const gano = terminoEnJuego && (miBando === 1 ? sesion.estado === 'victoria' : sesion.estado === 'derrota');
+    const iconoTitulo = gano ? 'trophy-fill' : terminoEnJuego ? 'emoji-dizzy-fill' : 'dash-circle';
+    const textoTitulo = gano ? '¡Victoria!' : terminoEnJuego ? 'Derrota' : 'Encuentro cancelado';
 
     return (
       <div
@@ -996,8 +1028,12 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
           fontFamily: 'var(--font-body)',
         }}
       >
-        <h2 className="mb-4" style={{ fontFamily: 'var(--font-display)' }}>
-          {titulo}
+        <h2
+          className="mb-4 d-flex align-items-center gap-2"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          <i className={`bi bi-${iconoTitulo}`} />
+          {textoTitulo}
         </h2>
 
         {yo && (
@@ -1018,7 +1054,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             {resultadoArena.posicion != null && (
               <div>
                 <i className="bi bi-award me-2" />
-                Rango #{resultadoArena.posicion}
+                Puesto #{resultadoArena.posicion}
                 {resultadoArena.cambio != null && resultadoArena.cambio !== 0 && (
                   <span
                     className="ms-2"
@@ -1032,7 +1068,8 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             )}
             {resultadoArena.elo_delta != null && (
               <div>
-                Elo: {resultadoArena.elo_delta >= 0 ? '+' : ''}
+                <i className="bi bi-graph-up-arrow me-2" />
+                Rango: {resultadoArena.elo_delta >= 0 ? '+' : ''}
                 {resultadoArena.elo_delta}
               </div>
             )}
@@ -1337,24 +1374,6 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                 ))}
               </div>
             ),
-          )}
-
-          {combateTerminado && (
-            <h4
-              className="text-center mt-3"
-              style={{
-                fontFamily:
-                  'var(--font-display)',
-              }}
-            >
-              {sesion.estado ===
-              'victoria'
-                ? '🏆 ¡Victoria!'
-                : sesion.estado ===
-                    'derrota'
-                  ? '💀 Derrota'
-                  : 'Encuentro cancelado'}
-            </h4>
           )}
         </div>
       </div>
