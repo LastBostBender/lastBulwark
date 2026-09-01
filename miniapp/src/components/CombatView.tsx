@@ -99,6 +99,16 @@ interface Poder {
   };
 }
 
+// Solo los campos que necesita la botonera de inventario dentro del combate.
+// Consumibles: tipo === 'usable' en la respuesta de inv_obtener.
+interface ItemUsable {
+  character_item_id: number;
+  nombre: string;
+  icono: string;
+  tipo: string;
+  cantidad: number;
+}
+
 // Réplica en el frontend de combat_costo_mana (SQL): mismo costo base +
 // franjas por nivel. Es solo para mostrar el número antes de tirar el
 // poder — el backend sigue siendo la fuente de verdad, esto no reemplaza
@@ -172,12 +182,13 @@ const MiniBarra = ({
 );
 
 // Grid de la banda: 1 -> tarjeta angosta centrada, 2 -> fila de 2, 3 -> fila de 3,
-// 4 (o más, por si acaso) -> 2x2. Puramente visual, no se usa para apuntar.
+// 4 (máximo posible en combate) -> fila única de 4, con piso de 60px por tarjeta
+// para no romperse en pantallas angostas (~320px).
 function gridBanda(n: number): { gridTemplateColumns: string; gridTemplateRows?: string } {
   if (n <= 1) return { gridTemplateColumns: 'minmax(0, 100px)' };
   if (n === 2) return { gridTemplateColumns: 'repeat(2, minmax(0, 92px))' };
   if (n === 3) return { gridTemplateColumns: 'repeat(3, minmax(0, 84px))' };
-  return { gridTemplateColumns: 'repeat(2, minmax(0, 92px))', gridTemplateRows: '1fr 1fr' };
+  return { gridTemplateColumns: 'repeat(4, minmax(60px, 1fr))' };
 }
 
 const TarjetaCombatiente = ({
@@ -235,6 +246,7 @@ const BandaCombate = ({
         style={{
           display: 'grid',
           gap: '4px',
+          width: '100%',
           justifyContent: align === 'end' ? 'end' : 'start',
           ...gridBanda(combatientes.length),
         }}
@@ -286,6 +298,9 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
   const [poderSeleccionado, setPoderSeleccionado] =
     useState<Poder | null>(null);
   const [accionArma, setAccionArma] = useState(false);
+  const [mostrarInventario, setMostrarInventario] = useState(false);
+  const [itemsUsables, setItemsUsables] = useState<ItemUsable[]>([]);
+  const [cargandoItems, setCargandoItems] = useState(false);
 
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -701,6 +716,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
   useEffect(() => {
     setPoderSeleccionado(null);
     setAccionArma(false);
+    setMostrarInventario(false);
   }, [sesion?.turno_actual, sesion?.ronda]);
 
   // Agrupa el log por acción.
@@ -885,6 +901,54 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
     setPoderSeleccionado(null);
     setAccionArma(false);
+  };
+
+  const cargarItemsUsables = async () => {
+    setCargandoItems(true);
+    const { data, error } = await supabase.rpc('inv_obtener', {
+      p_telegram_id: perfil.telegram_id,
+    });
+    setCargandoItems(false);
+
+    if (error) {
+      console.error('Error cargando inventario:', error);
+      return;
+    }
+
+    const usables = ((data ?? []) as ItemUsable[]).filter(
+      (it) => it.tipo === 'usable',
+    );
+    setItemsUsables(usables);
+  };
+
+  const abrirInventario = () => {
+    setMostrarInventario(true);
+    cargarItemsUsables();
+  };
+
+  const cerrarInventario = () => {
+    setMostrarInventario(false);
+  };
+
+  const usarItem = async (characterItemId: number) => {
+    if (!sesionId || enviando) return;
+
+    setEnviando(true);
+
+    const { data, error } = await supabase.rpc('combat_usar_item', {
+      p_sesion_id: sesionId,
+      p_telegram_id: perfil.telegram_id,
+      p_character_item_id: characterItemId,
+    });
+
+    setEnviando(false);
+
+    if (error || !data?.ok) {
+      console.error('Error usando item:', error || data);
+      return;
+    }
+
+    setMostrarInventario(false);
   };
 
   const tocarPoder = (poder: Poder) => {
@@ -1605,6 +1669,82 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                 )}
               </div>
           </div>
+        ) : mostrarInventario ? (
+          // --- Consumibles (solo tipo 'usable', no interactúa con equipo) ---
+          <div>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="small text-secondary">
+                Consumibles
+              </span>
+
+              <button
+                className="btn btn-sm btn-outline-light"
+                onClick={cerrarInventario}
+                title="Volver a poderes"
+              >
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '6px',
+              }}
+            >
+              {cargandoItems && (
+                <div className="d-flex align-items-center justify-content-center text-secondary small">
+                  Cargando...
+                </div>
+              )}
+
+              {!cargandoItems &&
+                itemsUsables.length === 0 && (
+                  <div
+                    className="d-flex align-items-center justify-content-center text-secondary small"
+                    style={{ gridColumn: '1 / -1' }}
+                  >
+                    Sin consumibles
+                  </div>
+                )}
+
+              {itemsUsables.map((item) => (
+                <button
+                  key={item.character_item_id}
+                  disabled={enviando}
+                  onClick={() =>
+                    usarItem(item.character_item_id)
+                  }
+                  className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center p-2"
+                  style={{ position: 'relative' }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '3px',
+                      right: '4px',
+                      fontSize: '0.65rem',
+                      lineHeight: 1,
+                      color: theme.text,
+                    }}
+                  >
+                    x{item.cantidad}
+                  </span>
+
+                  <i
+                    className={`bi bi-${item.icono ?? 'bag'} fs-5`}
+                  />
+
+                  <span
+                    style={{ fontSize: '0.7rem' }}
+                  >
+                    {item.nombre}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           // --- Selección de poder / arma / inventario / huir ---
           <div
@@ -1739,14 +1879,10 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
               <button
                 disabled={enviando}
-                onClick={() =>
-                  alert(
-                    'Inventario aún no disponible.',
-                  )
-                }
+                onClick={abrirInventario}
                 className="btn btn-outline-light flex-grow-1"
               >
-                <i className="bi bi-bag" />
+                <i className="bi bi-backpack" />
               </button>
 
               <button
