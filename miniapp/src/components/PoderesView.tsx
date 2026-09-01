@@ -32,6 +32,9 @@ interface EfectoPoder {
   duracion_turnos?: number;
   probabilidad?: number;
   escala_por?: string;
+  // Solo presente en efectos de curación con crítico de sanación
+  // (p.ej. Sorbo de electrolitos). Ver combat_resolver_efecto_combate.
+  critico_porcentaje?: number;
 }
 
 interface Poder {
@@ -79,11 +82,27 @@ function etiquetaDestino(target: string): string {
 // Si el efecto trae escala_por, ajusta el valor base con la stat del jugador
 // que abre esta pantalla — misma fórmula que combat_resolver_efecto_combate
 // en SQL: delta_final = delta_base * (1 + stat/100), truncado.
+// NOTA: esta fórmula es la del camino "viejo" (daño, buffs/debuffs por
+// porcentaje, curación porcentual). NO se usa para curación base_por_nivel,
+// que tiene su propia progresión — ver curacionEstimada().
 function valorEscalado(e: EfectoPoder, perfil: PoderesViewProps['perfil']): number {
   if (!e.escala_por) return e.valor;
   const statValor = Number(perfil[e.escala_por] ?? 0);
   const factor = 1 + statValor / 100;
   return Math.trunc(e.valor * factor);
+}
+
+// Réplica de combat_calcular_curacion (SQL) para el nuevo modelo de sanación:
+// base * crecimiento_lineal_por_nivel(5→50) * (1 + ataque/100), redondeado.
+// select greatest(0, round(
+//   p_base_nivel * (1 + 4 * greatest(0, least(45, p_nivel - 5))::numeric / 45)
+//   * (1 + greatest(0, p_ataque) / 100)
+// ))::integer;
+function curacionEstimada(e: EfectoPoder, perfil: PoderesViewProps['perfil']): number {
+  const nivel = Math.max(5, perfil.nivel ?? 5);
+  const crecimiento = 1 + (4 * Math.max(0, Math.min(45, nivel - 5))) / 45;
+  const ataque = e.escala_por ? Math.max(0, Number(perfil[e.escala_por] ?? 0)) : 0;
+  return Math.max(0, Math.round(e.valor * crecimiento * (1 + ataque / 100)));
 }
 
 // Convierte cada efecto del poder en una línea ±stat legible. El valor ya
@@ -104,6 +123,16 @@ function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): st
     case 'porcentaje_vida_actual': {
       const signo = e.tipo === 'curacion' ? '+' : '-';
       return `${signo}${Math.abs(valor)}% vida${duracion}${destino}`;
+    }
+    // Nuevo modelo de sanación: base fija que crece linealmente entre nivel
+    // 5 y 50, y escala con el ataque del lanzador. Ya no depende de ps_actual
+    // del objetivo. Ver combat_calcular_curacion en el motor de combate.
+    case 'base_por_nivel': {
+      const cura = curacionEstimada(e, perfil);
+      const critInfo = e.critico_porcentaje
+        ? ` (crít ${e.critico_porcentaje}%: ${cura * 2})`
+        : '';
+      return `+${cura} PS${critInfo}${destino}`;
     }
     case 'porcentaje_dano_recibido':
       return `+${valor}% contraataque${destino}`;
