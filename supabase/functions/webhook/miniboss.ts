@@ -45,8 +45,8 @@ const CANCELADO_VACIO = [
 ];
 
 const CANCELADO_POCOS = [
-  "participantes de 5 nada más? El jefe hizo cuentas, no le convenció el resultado, y se fue caminando. Consigan refuerzos.",
-  "de 5. El jefe los miró, calculó el riesgo laboral, y decidió que hoy no. Vuelvan con más gente.",
+  "participantes de 4 nada más? El jefe hizo cuentas, no le convenció el resultado, y se fue caminando. Consigan refuerzos.",
+  "de 4. El jefe los miró, calculó el riesgo laboral, y decidió que hoy no. Vuelvan con más gente.",
 ];
 
 function mensajeCancelado(nivelJefe: number, participantes: number): string {
@@ -153,7 +153,7 @@ export async function handleCallbackQuery(callbackQuery: any) {
       no_registrado: "Primero registrate en la Mini App.",
       nivel_fuera_de_rango: "Tu nivel no encaja con este mini jefe.",
       ya_unido: "Ya estás en la cola.",
-      cola_llena: "La cola ya está llena (5/5).",
+      cola_llena: "La cola ya está llena (4/4).",
       sin_energia: "Te quedaste sin energía. Se regenera 1 por hora — volvé en un rato.",
       error_interno: "Algo falló. Intenta de nuevo.",
     };
@@ -185,6 +185,6 @@ export async function handleCallbackQuery(callbackQuery: any) {
         inline_keyboard: [[{ text: "⚔️ Machacar", callback_data: `mb_join:${encounterId}` }]],
       });
     }
-    await answerCallbackQuery(callbackId, `Te uniste (${resultado.participantes}/5).`);
+    await answerCallbackQuery(callbackId, `Te uniste (${resultado.participantes}/4).`);
   }
 }

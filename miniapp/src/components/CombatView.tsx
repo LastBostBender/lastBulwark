@@ -171,6 +171,81 @@ const MiniBarra = ({
   </div>
 );
 
+// Grid de la banda: 1 -> tarjeta angosta centrada, 2 -> fila de 2, 3 -> fila de 3,
+// 4 (o más, por si acaso) -> 2x2. Puramente visual, no se usa para apuntar.
+function gridBanda(n: number): { gridTemplateColumns: string; gridTemplateRows?: string } {
+  if (n <= 1) return { gridTemplateColumns: 'minmax(0, 140px)' };
+  if (n === 2) return { gridTemplateColumns: '1fr 1fr' };
+  if (n === 3) return { gridTemplateColumns: '1fr 1fr 1fr' };
+  return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' };
+}
+
+const TarjetaCombatiente = ({
+  c,
+  colorBorde,
+}: {
+  c: Combatiente;
+  colorBorde: string;
+}) => (
+  <div
+    style={{
+      border: `1px solid ${colorBorde}`,
+      borderRadius: '6px',
+      padding: '3px 6px',
+      fontSize: '0.68rem',
+      lineHeight: 1.1,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: 0,
+    }}
+  >
+    <span
+      style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+    >
+      {c.nombre}
+    </span>
+    <MiniBarra actual={c.ps_actual} max={c.ps_max} color="#c0392b" />
+    <MiniBarra actual={c.pm_actual} max={c.pm_max} color="#2980b9" />
+  </div>
+);
+
+// Banda visual (no interactiva) de una banda de combate: enemigos arriba,
+// aliados sobre la botonera. Muestra nombre + PS/PM de todos, sin importar
+// cuántos sean (2 a 4), a diferencia del viejo aside que solo mostraba al
+// propio jugador.
+const BandaCombate = ({
+  combatientes,
+  colorBorde,
+}: {
+  combatientes: Combatiente[];
+  colorBorde: string;
+}) => {
+  if (combatientes.length === 0) return null;
+
+  return (
+    <div className="d-flex justify-content-center px-2 py-1">
+      <div
+        style={{
+          display: 'grid',
+          gap: '4px',
+          width: '100%',
+          justifyContent: combatientes.length <= 1 ? 'center' : undefined,
+          ...gridBanda(combatientes.length),
+        }}
+      >
+        {combatientes.map((c) => (
+          <TarjetaCombatiente key={c.id} c={c} colorBorde={colorBorde} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps) => {
   const theme = getTheme(perfil.zona);
   // Congelado: una vez que hay un id real, se queda con ese aunque el backend
@@ -922,7 +997,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                {colaCount}/5
+                {colaCount}/4
               </p>
             </>
           )}
@@ -1002,6 +1077,15 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       (a, b) =>
         (a.orden ?? 0) - (b.orden ?? 0),
     );
+
+  // Para las bandas visuales de arriba (enemigos) y sobre la botonera (aliados).
+  // Puramente informativo: apuntar sigue siendo por los botones de objetivo.
+  const aliadosVivos = vivos.filter(
+    (c) => c.bando === (miCombatiente?.bando ?? 1),
+  );
+  const enemigosVivos = vivos.filter(
+    (c) => c.bando !== (miCombatiente?.bando ?? 1),
+  );
 
   const combateTerminado =
     sesion.estado !== 'en_curso';
@@ -1256,80 +1340,12 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             })}
           </div>
         </div>
+
+        {/* Banda enemiga (visual, no apunta) */}
+        <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" />
       </header>
 
       <div className="flex-grow-1 d-flex overflow-hidden">
-        {/* PS / PM */}
-        <div
-          className="d-flex flex-shrink-0"
-          style={{
-            width: '28px',
-            gap: '4px',
-            padding: '10px 6px',
-          }}
-        >
-          {miCombatiente && (
-            <>
-              <div
-                className="d-flex align-items-end"
-                style={{
-                  width: '8px',
-                  height: '100%',
-                  backgroundColor:
-                    'rgba(255,255,255,0.08)',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#c0392b',
-                    height: `${
-                      miCombatiente.ps_max > 0
-                        ? (miCombatiente.ps_actual /
-                            miCombatiente.ps_max) *
-                          100
-                        : 0
-                    }%`,
-                    transition:
-                      'height 0.3s ease',
-                  }}
-                />
-              </div>
-
-              <div
-                className="d-flex align-items-end"
-                style={{
-                  width: '8px',
-                  height: '100%',
-                  backgroundColor:
-                    'rgba(255,255,255,0.08)',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#2980b9',
-                    height: `${
-                      miCombatiente.pm_max > 0
-                        ? (miCombatiente.pm_actual /
-                            miCombatiente.pm_max) *
-                          100
-                        : 0
-                    }%`,
-                    transition:
-                      'height 0.3s ease',
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Centro: log */}
         {/* Centro: log */}
         <div
           ref={logRef}
@@ -1377,6 +1393,9 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
           )}
         </div>
       </div>
+
+      {/* Banda propia (visual, no apunta) */}
+      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" />
 
       {/* Footer */}
       <footer
