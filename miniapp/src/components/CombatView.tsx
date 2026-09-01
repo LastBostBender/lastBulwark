@@ -174,10 +174,10 @@ const MiniBarra = ({
 // Grid de la banda: 1 -> tarjeta angosta centrada, 2 -> fila de 2, 3 -> fila de 3,
 // 4 (o más, por si acaso) -> 2x2. Puramente visual, no se usa para apuntar.
 function gridBanda(n: number): { gridTemplateColumns: string; gridTemplateRows?: string } {
-  if (n <= 1) return { gridTemplateColumns: 'minmax(0, 140px)' };
-  if (n === 2) return { gridTemplateColumns: '1fr 1fr' };
-  if (n === 3) return { gridTemplateColumns: '1fr 1fr 1fr' };
-  return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' };
+  if (n <= 1) return { gridTemplateColumns: 'minmax(0, 100px)' };
+  if (n === 2) return { gridTemplateColumns: 'repeat(2, minmax(0, 92px))' };
+  if (n === 3) return { gridTemplateColumns: 'repeat(3, minmax(0, 84px))' };
+  return { gridTemplateColumns: 'repeat(2, minmax(0, 92px))', gridTemplateRows: '1fr 1fr' };
 }
 
 const TarjetaCombatiente = ({
@@ -191,12 +191,12 @@ const TarjetaCombatiente = ({
     style={{
       border: `1px solid ${colorBorde}`,
       borderRadius: '6px',
-      padding: '3px 6px',
-      fontSize: '0.68rem',
+      padding: '2px 5px',
+      fontSize: '0.62rem',
       lineHeight: 1.1,
       display: 'flex',
       flexDirection: 'column',
-      gap: '2px',
+      gap: '1px',
       minWidth: 0,
     }}
   >
@@ -221,20 +221,21 @@ const TarjetaCombatiente = ({
 const BandaCombate = ({
   combatientes,
   colorBorde,
+  align = 'start',
 }: {
   combatientes: Combatiente[];
   colorBorde: string;
+  align?: 'start' | 'end';
 }) => {
   if (combatientes.length === 0) return null;
 
   return (
-    <div className="d-flex justify-content-center px-2 py-1">
+    <div className={`d-flex justify-content-${align} px-2 py-1`}>
       <div
         style={{
           display: 'grid',
           gap: '4px',
-          width: '100%',
-          justifyContent: combatientes.length <= 1 ? 'center' : undefined,
+          justifyContent: align === 'end' ? 'end' : 'start',
           ...gridBanda(combatientes.length),
         }}
       >
@@ -1340,10 +1341,10 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             })}
           </div>
         </div>
-
-        {/* Banda enemiga (visual, no apunta) */}
-        <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" />
       </header>
+
+      {/* Banda enemiga (visual, no apunta) — fuera del contenedor de turnos */}
+      <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" align="end" />
 
       <div className="flex-grow-1 d-flex overflow-hidden">
         {/* Centro: log */}
@@ -1395,7 +1396,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       </div>
 
       {/* Banda propia (visual, no apunta) */}
-      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" />
+      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" align="start" />
 
       {/* Footer */}
       <footer
