@@ -303,6 +303,11 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
   const [errorCola, setErrorCola] = useState<string | null>(null);
   const [intentoCola, setIntentoCola] = useState(0);
 
+  // Mensaje visible cuando el backend rechaza un clic (turno desfasado, poder en
+  // cooldown, sin maná, etc). Antes esto solo iba a console.error y el jugador
+  // no se enteraba de nada — parecía que el botón "no hacía nada".
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+
   // --- Pantalla de resultado (reemplaza el corte feo directo a perfil) ---
   const [resultadoCerrado, setResultadoCerrado] = useState(false);
   const [resultadoArena, setResultadoArena] = useState<{
@@ -819,6 +824,14 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
     });
   }, [gruposVisibles]);
 
+  // Auto-oculta el aviso de rechazo tras unos segundos, para que no quede
+  // pegado ahí si el jugador ya reintentó y esta vez sí funcionó.
+  useEffect(() => {
+    if (!errorAccion) return;
+    const t = setTimeout(() => setErrorAccion(null), 4000);
+    return () => clearTimeout(t);
+  }, [errorAccion]);
+
   if (!sesionId && perfil.estado !== 'en_cola') {
     return null;
   }
@@ -845,6 +858,26 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
         (miCombatiente?.cooldowns?.[p.id] ?? 0) > 0
       ),
   );
+
+  // Motivos que devuelve combat_ejecutar_accion cuando rechaza un clic.
+  // "no_es_tu_turno" es el más común: la pantalla va un paso atrás del
+  // estado real (llegó una acción de otro jugador que todavía no se
+  // terminó de narrar acá). No es un error del jugador, así que el
+  // mensaje no lo culpa — solo le explica que reintente.
+  const MOTIVOS_RECHAZO: Record<string, string> = {
+    no_es_tu_turno: 'Ese clic llegó un instante antes de tiempo — todavía no era tu turno. Probá de nuevo.',
+    sesion_no_activa: 'El combate ya no está activo.',
+    no_participa: 'Ya no estás en este combate.',
+    debes_votar: 'Hay una votación de huida en curso — votá primero.',
+    no_hay_votacion: 'No hay ninguna votación de huida abierta.',
+    falta_voto: 'Falta indicar el voto.',
+    falta_objetivo: 'Ese poder necesita un objetivo.',
+    objetivo_invalido: 'Ese objetivo ya no es válido (murió o cambió de estado).',
+    poder_invalido: 'Ese poder no está disponible.',
+    en_enfriamiento: 'Ese poder todavía está en enfriamiento.',
+    mana_insuficiente: 'No te alcanza el maná para ese poder.',
+    accion_desconocida: 'Acción no reconocida.',
+  };
 
   const ejecutar = async (
     accion:
@@ -879,9 +912,15 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
         'Error ejecutando acción:',
         error || data,
       );
+      const motivo: string | undefined = data?.motivo;
+      setErrorAccion(
+        (motivo && MOTIVOS_RECHAZO[motivo]) ||
+          'No se pudo registrar la acción. Probá de nuevo.',
+      );
       return;
     }
 
+    setErrorAccion(null);
     setPoderSeleccionado(null);
     setAccionArma(false);
   };
@@ -1396,6 +1435,20 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
       {/* Banda propia (visual, no apunta) */}
       <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" />
+
+      {/* Aviso visible cuando el backend rechazó el último clic */}
+      {errorAccion && (
+        <div
+          className="px-3 py-2 text-center"
+          style={{
+            backgroundColor: 'rgba(220, 53, 69, 0.85)',
+            color: '#fff',
+            fontSize: '0.85rem',
+          }}
+        >
+          {errorAccion}
+        </div>
+      )}
 
       {/* Footer */}
       <footer
