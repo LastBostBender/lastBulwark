@@ -1735,7 +1735,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                   </span>
 
                   <i
-                    className={`bi bi-${item.icono ?? 'bag'} fs-5`}
+                    className={`bi bi-${item.icono ?? 'flask-florence'} fs-5`}
                   />
 
                   <span

@@ -27,7 +27,7 @@ interface ItemRow {
   slot_equipo: SlotEquipo | null;
   descripcion: string;
   icono: string;
-  efecto: { stats?: Record<string, number>; pasiva?: string | null } | null;
+  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number } | null;
   cantidad: number;
   equipado: boolean;
   power_id: number | null;
@@ -109,11 +109,21 @@ const NOMBRE_STAT: Record<string, string> = {
   ps_max: 'Puntos de salud máx.',
   pm_actual: 'Puntos de maná',
   pm_max: 'Puntos de maná máx.',
+  regen_ps: 'Regeneración de salud',
+  regen_pm: 'Regeneración de maná',
   precision_stat: 'Precisión',
   escape: 'Escape',
 };
 
 const nombreStat = (clave: string) => NOMBRE_STAT[clave] ?? clave.replace(/_/g, ' ');
+
+// Estandar de íconos para consumibles: flask (descanso) / flask-florence (combate).
+// El campo `icono` del catálogo manda si viene seteado; esto es solo el fallback.
+const iconoItem = (it: ItemRow, fallbackGenerico: string): string => {
+  if (it.icono) return it.icono;
+  if (it.tipo === 'usable') return it.contexto_uso === 'combate' ? 'flask-florence' : 'flask';
+  return fallbackGenerico;
+};
 
 const MOTIVO_MENSAJE: Record<string, string> = {
   bolsa_llena: 'No hay espacio en esa sección de la bolsa.',
@@ -339,7 +349,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                       >
                         {it && (
                           <>
-                            <i className={`bi bi-${it.icono || ICONO_SECCION[tipo].replace('bi-', '')}`} style={{ fontSize: '1.2rem' }}></i>
+                            <i className={`bi bi-${iconoItem(it, ICONO_SECCION[tipo].replace('bi-', ''))}`} style={{ fontSize: '1.2rem' }}></i>
                             {it.cantidad > 1 && (
                               <span
                                 style={{
@@ -396,7 +406,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
           >
             <div className="d-flex align-items-center mb-2" style={{ gap: '0.5rem' }}>
               <i
-                className={`bi bi-${seleccionado.icono || 'question-circle'}`}
+                className={`bi bi-${iconoItem(seleccionado, 'question-circle')}`}
                 style={{
                   fontSize: '1.4rem',
                   color: seleccionado.rareza ? COLOR_RAREZA[seleccionado.rareza] : theme.accent,
@@ -439,6 +449,16 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   </div>
                 )}
                 {seleccionado.efecto?.pasiva && <div>Pasiva: {seleccionado.efecto.pasiva}</div>}
+                {!!seleccionado.efecto?.duracion_minutos && (
+                  <div style={{ color: theme.text, opacity: 0.8 }}>
+                    Duración: {seleccionado.efecto.duracion_minutos} min reales
+                  </div>
+                )}
+                {!!seleccionado.efecto?.duracion_turnos && (
+                  <div style={{ color: theme.text, opacity: 0.8 }}>
+                    Duración: {seleccionado.efecto.duracion_turnos} turno{seleccionado.efecto.duracion_turnos > 1 ? 's' : ''}
+                  </div>
+                )}
                 {seleccionado.power_id && (
                   <div>
                     <i className={`bi bi-${seleccionado.power_icono || 'stars'} me-1`}></i>
@@ -524,6 +544,16 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   <i className="bi bi-trash"></i>
                 </button>
               )}
+
+              <button
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                style={{ width: '2.2rem', height: '2.2rem', border: `1px solid ${theme.text}80`, color: theme.text, backgroundColor: 'transparent' }}
+                disabled={procesando}
+                onClick={cerrarModal}
+                title="Cerrar"
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
             </div>
           </div>
         </div>

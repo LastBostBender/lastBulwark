@@ -49,6 +49,16 @@ interface Poder {
   cooldown_turnos: number | null;
 }
 
+// Consumibles de descanso con efecto vigente (elixires, etc.) — tabla
+// character_buffs_activos. Solo viven acá: los de combate se consumen y
+// resuelven enteros dentro de CombatView, nunca aparecen en esta pantalla.
+interface BuffActivo {
+  id: number;
+  nombre: string;
+  stats: Record<string, number>;
+  expira_en: string;
+}
+
 const NOMBRE_STAT: Record<string, string> = {
   ataque_fisico: 'ataque físico',
   ataque_magico: 'ataque mágico',
@@ -61,6 +71,24 @@ const NOMBRE_STAT: Record<string, string> = {
   suerte: 'suerte',
   aleatorio: 'stat aleatorio',
 };
+
+// Nombres de stat propios de los buffs de descanso (ver iconoItem/NOMBRE_STAT
+// en InventarioView.tsx — mismo criterio, duplicado acá porque son vistas
+// independientes).
+const NOMBRE_STAT_BUFF: Record<string, string> = {
+  ...NOMBRE_STAT,
+  ps_max: 'vida máxima',
+  pm_max: 'maná máximo',
+  regen_ps: 'regeneración de vida',
+  regen_pm: 'regeneración de maná',
+};
+
+function formatearRestante(ms: number): string {
+  const totalSeg = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSeg / 60);
+  const s = totalSeg % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // Etiqueta de a quién le llega el efecto. Cubre los valores de `target` que
 // existen hoy en la tabla powers; si aparece uno nuevo, se muestra tal cual
@@ -193,26 +221,60 @@ const DetallePoder = ({ poder, theme, perfil }: { poder: Poder; theme: ReturnTyp
   );
 };
 
+const DetalleBuff = ({ buff, theme }: { buff: BuffActivo; theme: ReturnType<typeof getTheme> }) => {
+  const entradas = Object.entries(buff.stats ?? {});
+  return (
+    <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
+      {entradas.length > 0 ? (
+        <div
+          style={{
+            borderTop: `1px solid ${theme.border}`,
+            borderBottom: `1px solid ${theme.border}`,
+            padding: '0.4rem 0',
+          }}
+        >
+          {entradas.map(([k, v]) => (
+            <div key={k} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
+              {v >= 0 ? '+' : ''}{v} {NOMBRE_STAT_BUFF[k] ?? k.replace(/_/g, ' ')}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ color: theme.text }}>Sin efecto asociado.</div>
+      )}
+    </div>
+  );
+};
+
 export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesViewProps) => {
   const [catalogo, setCatalogo] = useState<Poder[]>([]);
   const [aprendidos, setAprendidos] = useState<string[]>([]);
+  const [buffsActivos, setBuffsActivos] = useState<BuffActivo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [poderExpandido, setPoderExpandido] = useState<string | null>(null);
+  const [buffExpandido, setBuffExpandido] = useState<number | null>(null);
   const [aprendiendoPoder, setAprendiendoPoder] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
 
   const cargarDatos = async () => {
     setCargando(true);
-    const [catalogoRes, aprendidosRes] = await Promise.all([
+    const [catalogoRes, aprendidosRes, buffsRes] = await Promise.all([
       supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos'),
       supabase
         .from('character_powers')
         .select('powers(nombre)')
         .eq('telegram_id', perfil.telegram_id),
+      supabase
+        .from('character_buffs_activos')
+        .select('id, nombre, stats, expira_en')
+        .eq('telegram_id', perfil.telegram_id)
+        .gt('expira_en', new Date().toISOString()),
     ]);
     if (catalogoRes.data) setCatalogo(catalogoRes.data as Poder[]);
     if (aprendidosRes.data) {
       setAprendidos(aprendidosRes.data.map((row: any) => row.powers.nombre));
     }
+    if (buffsRes.data) setBuffsActivos(buffsRes.data as BuffActivo[]);
     setCargando(false);
   };
 
@@ -220,6 +282,16 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
     cargarDatos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perfil.telegram_id]);
+
+  // Cuenta regresiva en vivo del tiempo restante de cada consumible activo.
+  // Solo corre el reloj mientras haya algo que mostrar.
+  useEffect(() => {
+    if (buffsActivos.length === 0) return;
+    const id = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [buffsActivos.length]);
+
+  const buffsVigentes = buffsActivos.filter((b) => new Date(b.expira_en).getTime() > ahora);
 
   const aprenderPoder = async (poder: Poder) => {
     if (aprendiendoPoder) return;
@@ -285,6 +357,54 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
           <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>
             Cargando...
           </p>
+        )}
+
+        {!cargando && buffsVigentes.length > 0 && (
+          <div className="mb-3">
+            <div className="text-center mb-2" style={{ color: theme.accent, fontSize: '0.8rem' }}>
+              <i className="bi bi-flask me-1"></i> Consumibles activos
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {buffsVigentes.map((buff) => {
+                const expandido = buffExpandido === buff.id;
+                const restanteMs = new Date(buff.expira_en).getTime() - ahora;
+                return (
+                  <div key={buff.id} style={{ borderBottom: `1px solid ${theme.border}40` }}>
+                    <button
+                      onClick={() => setBuffExpandido(expandido ? null : buff.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.6rem',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '0.4rem 0.2rem',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '0.95rem',
+                        color: theme.text,
+                        cursor: 'pointer',
+                        transition: 'background-color 0.1s ease',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,0,0.05)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <i className="bi bi-flask" style={{ color: theme.accent, fontSize: '1.1rem' }}></i>
+                      <span>{buff.nombre}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: theme.accent, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatearRestante(restanteMs)}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: theme.text }}>
+                        <i className={`bi bi-${expandido ? 'chevron-up' : 'chevron-right'}`}></i>
+                      </span>
+                    </button>
+                    {expandido && <DetalleBuff buff={buff} theme={theme} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {!cargando && poderesPendientes.length > 0 && (
@@ -395,7 +515,7 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
           </div>
         )}
 
-        {!cargando && poderesPendientes.length === 0 && poderesAprendidosInfo.length === 0 && (
+        {!cargando && poderesPendientes.length === 0 && poderesAprendidosInfo.length === 0 && buffsVigentes.length === 0 && (
           <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text, marginTop: '2rem' }}>
             Todavía no tienes poderes. Reparte puntos de talento en tu perfil para desbloquear el primero a los 4 puntos.
           </p>
