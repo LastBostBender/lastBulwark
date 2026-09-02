@@ -120,10 +120,16 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     }
     if (data) {
       setProfile((prev) => {
+        // El RPC ahora devuelve ps_max/pm_max EFECTIVOS (base + bono de buffs
+        // de descanso vigentes, ej. Limonada), no solo ps_actual/pm_actual.
+        // Antes esta vista nunca miraba character_buffs_activos, así que un
+        // +pm_max de un elixir se veía en Poderes pero no acá.
         const actualizado = {
           ...prev,
           ps_actual: (data as any).ps_actual,
           pm_actual: (data as any).pm_actual,
+          ps_max: (data as any).ps_max,
+          pm_max: (data as any).pm_max,
         };
         onProfileChange?.(actualizado);
         return actualizado;
@@ -242,6 +248,11 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
         onProfileChange?.(actualizado);
         return actualizado;
       });
+      // El select('*') de arriba trae ps_max/pm_max BASE (sin buffs de
+      // descanso vigentes), porque ese valor sale del trigger de la DB, no
+      // del RPC. Se reconsulta acá para no perder un +pm_max de elixir justo
+      // al subir un punto de talento.
+      await regenerarRecursos();
     }
   };
 
