@@ -82,6 +82,42 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const [bonusZona, setBonusZona] = useState<Record<string, number>>({});
   const [pasivosZonaActivos, setPasivosZonaActivos] = useState<{ nombre: string; descripcion_flavor: string }[]>([]);
 
+  // Bono de ps_max/pm_max de buffs de descanso vigentes (ej. Limonada). Se
+  // calcula acá en vez de depender de profile.ps_max/pm_max porque esa
+  // columna en `profiles` NUNCA incluye el buff (el trigger de stats
+  // derivados solo suma fue/int/agi/nivel/bono_equipo) y además cualquier
+  // refetch crudo de la fila — incluido el UPDATE que hace el propio RPC de
+  // regenerar_recursos, que dispara la suscripción Realtime en Profile.tsx —
+  // pisaría un valor "parchado" en el estado local. Sumarlo en cada render
+  // es lo único que sobrevive a esos refrescos.
+  const [bonoMaxBuffs, setBonoMaxBuffs] = useState({ ps_max: 0, pm_max: 0, regen_ps: 0, regen_pm: 0 });
+
+  const cargarBonoMaxBuffs = async () => {
+    const { data } = await supabase
+      .from('character_buffs_activos')
+      .select('stats')
+      .eq('telegram_id', perfil.telegram_id)
+      .gt('expira_en', new Date().toISOString());
+    if (!data) return;
+    const bono = { ps_max: 0, pm_max: 0, regen_ps: 0, regen_pm: 0 };
+    for (const fila of data as any[]) {
+      bono.ps_max += Number(fila.stats?.ps_max ?? 0);
+      bono.pm_max += Number(fila.stats?.pm_max ?? 0);
+      bono.regen_ps += Number(fila.stats?.regen_ps ?? 0);
+      bono.regen_pm += Number(fila.stats?.regen_pm ?? 0);
+    }
+    setBonoMaxBuffs(bono);
+  };
+
+  useEffect(() => {
+    cargarBonoMaxBuffs();
+    // Se refresca cada 30s para que el techo baje solo apenas vence el buff,
+    // sin depender de que el jugador reabra la pantalla.
+    const id = setInterval(cargarBonoMaxBuffs, 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil.telegram_id]);
+
   const cargarPasivosZona = async () => {
     const [bonusRes, temporadaRes] = await Promise.all([
       supabase.rpc('obtener_bonus_zona', { p_zona: perfil.zona }),
@@ -120,16 +156,15 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     }
     if (data) {
       setProfile((prev) => {
-        // El RPC ahora devuelve ps_max/pm_max EFECTIVOS (base + bono de buffs
-        // de descanso vigentes, ej. Limonada), no solo ps_actual/pm_actual.
-        // Antes esta vista nunca miraba character_buffs_activos, así que un
-        // +pm_max de un elixir se veía en Poderes pero no acá.
+        // Solo ps_actual/pm_actual: el RPC devuelve ps_max/pm_max EFECTIVOS
+        // (base + buffs) para el clamp interno, pero esta vista ya calcula
+        // ese mismo bono por separado (bonoMaxBuffs, ver más abajo) para que
+        // sobreviva a refrescos crudos de `profiles` — sumarlo también acá
+        // lo duplicaría.
         const actualizado = {
           ...prev,
           ps_actual: (data as any).ps_actual,
           pm_actual: (data as any).pm_actual,
-          ps_max: (data as any).ps_max,
-          pm_max: (data as any).pm_max,
         };
         onProfileChange?.(actualizado);
         return actualizado;
@@ -241,25 +276,21 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     }
 
     // Se sincroniza con TODO lo que devolvió la DB (incluye stats derivadas
-    // recalculadas por el trigger), y se propaga al padre.
+    // recalculadas por el trigger). ps_max/pm_max quedan en base sin buff acá,
+    // pero eso ya no importa: psMax/pmMax en el render suman bonoMaxBuffs aparte.
     if (data) {
       setProfile((prev) => {
         const actualizado = { ...prev, ...data };
         onProfileChange?.(actualizado);
         return actualizado;
       });
-      // El select('*') de arriba trae ps_max/pm_max BASE (sin buffs de
-      // descanso vigentes), porque ese valor sale del trigger de la DB, no
-      // del RPC. Se reconsulta acá para no perder un +pm_max de elixir justo
-      // al subir un punto de talento.
-      await regenerarRecursos();
     }
   };
 
   const theme = getTheme(profile.zona);
 
-  const psMax = profile.ps_max;
-  const pmMax = profile.pm_max;
+  const psMax = profile.ps_max + bonoMaxBuffs.ps_max;
+  const pmMax = profile.pm_max + bonoMaxBuffs.pm_max;
   const psActual = Math.min(profile.ps_actual, psMax);
   const pmActual = Math.min(profile.pm_actual, pmMax);
 
@@ -269,9 +300,11 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const xpEnEsteNivel = profile.xp_total;
   const xpParaSubir = xpNecesaria(profile.nivel);
 
-  // regen_ps / regen_pm: bonus de Voracidad (Brote de Acero) aplicado al ritmo mostrado.
-  const regenPS = ((profile.fue * 0.4) + (profile.agi * 0.1) + 2) * (1 + (bonusZona.regen_ps ?? 0) / 100);
-  const regenPM = ((profile.int * 0.5) + (profile.agi * 0.1) + 1) * (1 + (bonusZona.regen_pm ?? 0) / 100);
+  // regen_ps / regen_pm: bonus de Voracidad (Brote de Acero) aplicado al ritmo
+  // mostrado, más el bono plano de buffs de descanso vigentes (ej. Limonada
+  // +1 regen_pm) — coincide con la fórmula real de regenerar_recursos.
+  const regenPS = ((profile.fue * 0.4) + (profile.agi * 0.1) + 2 + bonoMaxBuffs.regen_ps) * (1 + (bonusZona.regen_ps ?? 0) / 100);
+  const regenPM = ((profile.int * 0.5) + (profile.agi * 0.1) + 1 + bonoMaxBuffs.regen_pm) * (1 + (bonusZona.regen_pm ?? 0) / 100);
 
   // Aplica el bonus de zona (si corresponde) a una stat de combate persistida.
   const conBonus = (statKey: string, base: number) =>
