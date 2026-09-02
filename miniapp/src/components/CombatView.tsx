@@ -556,13 +556,15 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             .abortSignal(controller.signal),
 
           supabase
-            .from('combat_log')
-            .select('*')
-            .eq('sesion_id', sesionId)
-            .order('creado_en', { ascending: true })
-            .limit(50)
-            .abortSignal(controller.signal),
-
+  .from('combat_log')
+  .select('*')
+  .eq('sesion_id', sesionId)
+  .order('creado_en', { ascending: false })
+  .limit(50)
+  .abortSignal(controller.signal)
+  .then((res) =>
+    res.data ? { ...res, data: [...res.data].reverse() } : res,
+  ),
           supabase
             .from('character_powers')
             .select(
