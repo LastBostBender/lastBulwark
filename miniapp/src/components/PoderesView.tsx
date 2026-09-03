@@ -47,6 +47,8 @@ interface Poder {
   icono: string;
   parametros: { efectos: EfectoPoder[] };
   cooldown_turnos: number | null;
+  nivel_minimo?: number | null;
+  clase_requerida?: string | null;
 }
 
 // Consumibles de descanso con efecto vigente (elixires, etc.) — tabla
@@ -58,6 +60,26 @@ interface BuffActivo {
   stats: Record<string, number>;
   expira_en: string;
 }
+
+interface Clase {
+  id: number;
+  nombre: string;
+  stat_principal: 'fue' | 'int' | 'agi';
+  rol: 'sanador' | 'tanque' | 'dañador';
+  icono: string;
+  descripcion: string;
+  bono_stats: Record<string, number>;
+}
+
+// Esquema de color por stat primario — mismo criterio usado en el preview
+// de clases: rojo=fue, azul=int, verde=agi.
+const COLOR_STAT: Record<'fue' | 'int' | 'agi', string> = {
+  fue: '#ff4d4d',
+  int: '#4da6ff',
+  agi: '#4dff88',
+};
+
+const HITOS = [10, 20, 30, 40, 50];
 
 const NOMBRE_STAT: Record<string, string> = {
   ataque_fisico: 'ataque físico',
@@ -192,6 +214,193 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
   return (['fue', 'int', 'agi'] as const).filter((s) => stats[s] === max);
 };
 
+// Modal de selección de clase: fijo en pantalla, con scroll interno propio.
+// Los 5 hitos van en una franja horizontal scrolleable (no entran los 5 juntos
+// en el ancho del modal), unidos por una línea. Tocar un hito muestra qué
+// poder entrega ese nivel — o un placeholder si todavía no está cargado.
+const ClaseModal = ({
+  clase,
+  poderesHito,
+  theme,
+  eligiendo,
+  onCancelar,
+  onAceptar,
+}: {
+  clase: Clase;
+  poderesHito: Poder[];
+  theme: ReturnType<typeof getTheme>;
+  eligiendo: boolean;
+  onCancelar: () => void;
+  onAceptar: () => void;
+}) => {
+  const [hitoAbierto, setHitoAbierto] = useState<number | null>(null);
+  const color = COLOR_STAT[clase.stat_principal];
+
+  const poderDeHito = (hito: number) =>
+    poderesHito.find((p) => p.nombre && (p as any).nivel_minimo === hito);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1rem',
+      }}
+      onClick={onCancelar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '360px',
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          backgroundColor: theme.cardBg,
+          border: `1px solid ${color}`,
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Header: ícono + nombre */}
+        <div
+          className="d-flex align-items-center gap-2"
+          style={{ padding: '0.9rem 1rem 0.6rem', borderBottom: `1px solid ${theme.border}` }}
+        >
+          <i className={`bi bi-${clase.icono}`} style={{ color, fontSize: '1.4rem' }}></i>
+          <span style={{ color, fontFamily: 'var(--font-display)', fontSize: '1rem', letterSpacing: '0.5px' }}>
+            {clase.nombre}
+          </span>
+        </div>
+
+        {/* Descripción */}
+        <div style={{ padding: '0.8rem 1rem', borderBottom: `1px solid ${theme.border}` }}>
+          <p style={{ color: theme.text, fontSize: '0.9rem', margin: 0 }}>{clase.descripcion}</p>
+        </div>
+
+        {/* Hitos: franja horizontal scrolleable, círculos unidos por una línea */}
+        <div style={{ padding: '1rem 1rem 0.4rem', borderBottom: `1px solid ${theme.border}` }}>
+          <div style={{ overflowX: 'auto', paddingBottom: '0.3rem' }}>
+            <div style={{ position: 'relative', display: 'inline-flex', gap: '1.6rem', padding: '0 0.5rem', minWidth: '100%' }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '1.3rem',
+                  right: '1.3rem',
+                  height: '2px',
+                  backgroundColor: `${color}55`,
+                  zIndex: 0,
+                }}
+              />
+              {HITOS.map((hito) => {
+                const abierto = hitoAbierto === hito;
+                return (
+                  <button
+                    key={hito}
+                    onClick={() => setHitoAbierto(abierto ? null : hito)}
+                    className="rounded-circle"
+                    style={{
+                      position: 'relative',
+                      zIndex: 1,
+                      flex: '0 0 auto',
+                      width: '2.6rem',
+                      height: '2.6rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: abierto ? color : (theme.cardBg),
+                      color: abierto ? '#111' : color,
+                      border: `2px solid ${color}`,
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {hito}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {hitoAbierto && (
+            <div style={{ padding: '0.6rem 0.3rem 0.8rem', fontSize: '0.85rem' }}>
+              {(() => {
+                const poder = poderDeHito(hitoAbierto);
+                if (!poder) {
+                  return (
+                    <p style={{ color: theme.text, opacity: 0.6, margin: 0, fontStyle: 'italic' }}>
+                      Todavía sin definir.
+                    </p>
+                  );
+                }
+                return (
+                  <>
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color, fontSize: '1rem' }}></i>
+                      <span style={{ color }}>{poder.nombre}</span>
+                    </div>
+                    <p style={{ color: theme.text, margin: 0 }}>{poder.descripcion}</p>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* Cancelar / Aceptar */}
+        <div className="d-flex justify-content-center gap-4" style={{ padding: '1rem' }}>
+          <button
+            onClick={onCancelar}
+            disabled={eligiendo}
+            className="btn rounded-circle"
+            style={{
+              width: '2.6rem',
+              height: '2.6rem',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: theme.text,
+              border: `1px solid ${theme.border}`,
+              backgroundColor: 'transparent',
+            }}
+          >
+            <i className="bi bi-x-lg"></i>
+          </button>
+          <button
+            onClick={onAceptar}
+            disabled={eligiendo}
+            className="btn rounded-circle"
+            style={{
+              width: '2.6rem',
+              height: '2.6rem',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#111',
+              border: `1px solid ${color}`,
+              backgroundColor: color,
+              opacity: eligiendo ? 0.6 : 1,
+              cursor: eligiendo ? 'wait' : 'pointer',
+            }}
+          >
+            <i className="bi bi-check-lg"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DetallePoder = ({ poder, theme, perfil }: { poder: Poder; theme: ReturnType<typeof getTheme>; perfil: PoderesViewProps['perfil'] }) => {
   const lineas = (poder.parametros?.efectos ?? []).map((e) => formatearEfecto(e, perfil)).filter(Boolean);
   return (
@@ -250,6 +459,10 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   const [catalogo, setCatalogo] = useState<Poder[]>([]);
   const [aprendidos, setAprendidos] = useState<string[]>([]);
   const [buffsActivos, setBuffsActivos] = useState<BuffActivo[]>([]);
+  const [clases, setClases] = useState<Clase[]>([]);
+  const [claseModal, setClaseModal] = useState<Clase | null>(null);
+  const [eligiendoClase, setEligiendoClase] = useState(false);
+  const [errorClase, setErrorClase] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [poderExpandido, setPoderExpandido] = useState<string | null>(null);
   const [buffExpandido, setBuffExpandido] = useState<number | null>(null);
@@ -258,8 +471,8 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
 
   const cargarDatos = async () => {
     setCargando(true);
-    const [catalogoRes, aprendidosRes, buffsRes] = await Promise.all([
-      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos'),
+    const [catalogoRes, aprendidosRes, buffsRes, clasesRes] = await Promise.all([
+      supabase.from('powers').select('id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos, nivel_minimo, clase_requerida'),
       supabase
         .from('character_powers')
         .select('powers(nombre)')
@@ -269,12 +482,17 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
         .select('id, nombre, stats, expira_en')
         .eq('telegram_id', perfil.telegram_id)
         .gt('expira_en', new Date().toISOString()),
+      supabase
+        .from('classes')
+        .select('id, nombre, stat_principal, rol, icono, descripcion, bono_stats')
+        .neq('nombre', 'NPC consciente'),
     ]);
     if (catalogoRes.data) setCatalogo(catalogoRes.data as Poder[]);
     if (aprendidosRes.data) {
       setAprendidos(aprendidosRes.data.map((row: any) => row.powers.nombre));
     }
     if (buffsRes.data) setBuffsActivos(buffsRes.data as BuffActivo[]);
+    if (clasesRes.data) setClases(clasesRes.data as Clase[]);
     setCargando(false);
   };
 
@@ -313,6 +531,35 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
     if (onPoderAprendido) onPoderAprendido(poder.nombre);
   };
 
+  const elegirClase = async () => {
+    if (!claseModal || eligiendoClase) return;
+    setEligiendoClase(true);
+    setErrorClase(null);
+
+    const { data, error } = await supabase.rpc('elegir_clase', {
+      p_telegram_id: perfil.telegram_id,
+      p_clase_id: claseModal.id,
+    });
+
+    setEligiendoClase(false);
+
+    if (error || !data?.ok) {
+      const motivos: Record<string, string> = {
+        ya_tiene_clase: 'Ya tienes una clase elegida.',
+        nivel_insuficiente: 'Todavía no llegas al nivel necesario.',
+        puntos_insuficientes: 'Todavía no tienes los puntos necesarios.',
+        clase_invalida: 'Esa clase no es válida.',
+        clase_no_disponible: 'Esa clase ya no está disponible para tu stat dominante.',
+      };
+      setErrorClase(motivos[data?.motivo] ?? 'No se pudo aplicar la clase. Probá de nuevo.');
+      return;
+    }
+
+    // El perfil se actualiza solo por la suscripción realtime del padre;
+    // acá solo cerramos el modal.
+    setClaseModal(null);
+  };
+
   const toggleExpandir = (poder: string) => {
     setPoderExpandido(poderExpandido === poder ? null : poder);
   };
@@ -326,6 +573,10 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
   // sin perder lo ya aprendido en el tier anterior.
   const poderesAprendidosInfo = catalogo.filter((p) => aprendidos.includes(p.nombre));
   const tiersYaElegidos = new Set(poderesAprendidosInfo.map((p) => p.tier));
+
+  // Mismo umbral que tier 1/2 (suma total), un escalón más (9) + nivel 10.
+  const clasePendiente = perfil.clase === 'NPC consciente' && perfil.nivel >= 10 && puntosAsignados >= 9;
+  const clasesCandidatas = clasePendiente ? clases.filter((c) => dominantes.includes(c.stat_principal)) : [];
 
   const poderesPendientes: Poder[] = catalogo.filter((p) => {
     if (perfil.clase !== 'NPC consciente') return false;
@@ -357,6 +608,48 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
           <p className="text-center" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>
             Cargando...
           </p>
+        )}
+
+        {!cargando && clasesCandidatas.length > 0 && (
+          <div className="mb-3">
+            <div className="text-center mb-2" style={{ color: theme.accent, fontSize: '0.8rem' }}>
+              <i className="bi bi-award me-1"></i> Elige tu clase
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '0.5rem',
+              }}
+            >
+              {clasesCandidatas.map((c) => {
+                const color = COLOR_STAT[c.stat_principal];
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setClaseModal(c)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.7rem 0.3rem',
+                      backgroundColor: 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${color}`,
+                      borderRadius: '6px',
+                      color,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <i className={`bi bi-${c.icono}`} style={{ fontSize: '1.4rem' }}></i>
+                    <span style={{ fontSize: '0.7rem', textAlign: 'center', lineHeight: 1.1, fontFamily: 'var(--font-body)' }}>
+                      {c.nombre}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {!cargando && buffsVigentes.length > 0 && (
@@ -521,6 +814,34 @@ export const PoderesView = ({ perfil, onPoderAprendido, onNavigate }: PoderesVie
           </p>
         )}
       </div>
+      {claseModal && (
+        <ClaseModal
+          clase={claseModal}
+          poderesHito={catalogo.filter((p) => p.clase_requerida === claseModal.nombre)}
+          theme={theme}
+          eligiendo={eligiendoClase}
+          onCancelar={() => { setClaseModal(null); setErrorClase(null); }}
+          onAceptar={elegirClase}
+        />
+      )}
+      {errorClase && !claseModal && (
+        <div
+          className="px-3 py-2 text-center"
+          style={{
+            position: 'fixed',
+            bottom: '1rem',
+            left: '1rem',
+            right: '1rem',
+            backgroundColor: 'rgba(220, 53, 69, 0.9)',
+            color: '#fff',
+            fontSize: '0.85rem',
+            borderRadius: '4px',
+            zIndex: 900,
+          }}
+        >
+          {errorClase}
+        </div>
+      )}
     </Layout>
   );
 };
