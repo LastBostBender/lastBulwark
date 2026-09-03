@@ -79,32 +79,32 @@ const HITOS = [10, 20, 30, 40, 50];
  * cómo se muestran al jugador.
  */
 const NOMBRE_STAT: Record<string, string> = {
-  ps_max: 'PS Máx.',
-  pm_max: 'PM Máx.',
-  ataque_fisico: 'ataque físico',
-  ataque_magico: 'ataque mágico',
-  defensa_fisica: 'defensa física',
-  defensa_magica: 'defensa mágica',
-  precision_stat: 'precisión',
-  escape: 'escape',
-  velocidad: 'velocidad',
-  critico: 'crítico',
-  suerte: 'suerte',
-  regen_ps: 'regeneración de PS',
-  regen_pm: 'regeneración de PM',
+  ps_max: 'PS máx.',
+  pm_max: 'PM máx.',
+  ataque_fisico: 'Ataque físico',
+  ataque_magico: 'Ataque mágico',
+  defensa_fisica: 'Defensa física',
+  defensa_magica: 'Defensa mágica',
+  precision_stat: 'Precisión',
+  escape: 'Escape',
+  velocidad: 'Velocidad',
+  critico: 'Crítico',
+  suerte: 'Suerte',
+  regen_ps: 'Regeneración de PS',
+  regen_pm: 'Regeneración de PM',
   fue: 'FUE',
   int: 'INT',
   agi: 'AGI',
-  aleatorio: 'stat aleatorio',
+  aleatorio: 'Stat aleatorio',
 };
 
 // Nombres de stat propios de los buffs de descanso.
 const NOMBRE_STAT_BUFF: Record<string, string> = {
   ...NOMBRE_STAT,
-  ps_max: 'PS Máx.',
-  pm_max: 'PM Máx.',
-  regen_ps: 'regeneración de PS',
-  regen_pm: 'regeneración de PM',
+  ps_max: 'PS máx.',
+  pm_max: 'PM máx.',
+  regen_ps: 'Regeneración de PS',
+  regen_pm: 'Regeneración de PM',
 };
 
 function formatearRestante(ms: number): string {
@@ -182,7 +182,7 @@ function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): st
 
     case 'robo_variable': {
       const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `+${stat} robad${stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
+      return `+${stat} robad${e.stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
     }
 
     default:
