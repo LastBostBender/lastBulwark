@@ -32,6 +32,7 @@ interface ProfileViewProps {
     aura: number;
     elo: number;
     oro: number;
+    clase_id: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
   // Notifica al padre (Profile.tsx) cada vez que el perfil cambia localmente,
@@ -45,11 +46,6 @@ const xpNecesaria = (nivel: number): number => {
   return Math.floor(20 * Math.pow(nivel, 1.8));
 };
 
-
-const getStatPrincipal = (clase: string): 'fue' | 'int' | 'agi' | null => {
-  if (clase === 'NPC consciente') return null;
-  return null;
-};
 
 const calcularVersatilidad = (statPrincipal: 'fue' | 'int' | 'agi', stats: { fue: number; int: number; agi: number }) => {
   const valor = stats[statPrincipal];
@@ -91,6 +87,19 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   // pisaría un valor "parchado" en el estado local. Sumarlo en cada render
   // es lo único que sobrevive a esos refrescos.
   const [bonoMaxBuffs, setBonoMaxBuffs] = useState({ ps_max: 0, pm_max: 0, regen_ps: 0, regen_pm: 0 });
+
+  // stat_principal de cada clase, para calcular Versatilidad (antes era un
+  // stub que siempre devolvía null — nunca llegaba a mostrar nada).
+  const [clases, setClases] = useState<{ id: number; stat_principal: 'fue' | 'int' | 'agi' }[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from('classes')
+      .select('id, stat_principal')
+      .then(({ data }) => {
+        if (data) setClases(data as { id: number; stat_principal: 'fue' | 'int' | 'agi' }[]);
+      });
+  }, []);
 
   const cargarBonoMaxBuffs = async () => {
     const { data } = await supabase
@@ -317,7 +326,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   const conBonus = (statKey: string, base: number) =>
     Math.round(base * (1 + (bonusZona[statKey] ?? 0) / 100));
 
-  const statPrincipal = getStatPrincipal(profile.clase);
+  const statPrincipal = clases.find((c) => c.id === profile.clase_id)?.stat_principal ?? null;
   const versatilidad = statPrincipal ? calcularVersatilidad(statPrincipal, { fue: profile.fue, int: profile.int, agi: profile.agi }) : 0;
   const mostrarVersatilidad = profile.nivel >= 5 && profile.clase !== 'NPC consciente';
 
