@@ -240,6 +240,13 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
 
   const hayPoderPendiente = statsConPoderPendiente.size > 0;
 
+  // Clase pendiente: mismo umbral que tier 1/2 (suma fue+int+agi), un
+  // escalón más arriba (9), y solo aplica antes de elegir clase.
+  const hayClasePendiente =
+    profile.clase === 'NPC consciente' &&
+    profile.nivel >= 10 &&
+    profile.fue + profile.int + profile.agi >= 9;
+
   const asignarPunto = async (stat: 'fue' | 'int' | 'agi') => {
     if (puntosDisponibles <= 0 || guardandoStat || hayPoderPendiente) return;
 
@@ -451,6 +458,31 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
             )}
           </div>
         </div>
+
+        {/* AVISO: nivel + puntos alcanzan para elegir clase → manda a Poderes */}
+        {hayClasePendiente && (
+          <button
+            onClick={() => onNavigate && onNavigate('poderes')}
+            className="w-100 mt-2 mb-3"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              padding: '0.6rem 0.9rem',
+              backgroundColor: 'rgba(255,255,0,0.06)',
+              border: `1px solid ${theme.accent}`,
+              borderRadius: '4px',
+              color: theme.accent,
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="bi bi-award" style={{ fontSize: '1.2rem' }}></i>
+            <span>Tienes una clase por elegir</span>
+            <i className="bi bi-chevron-right" style={{ marginLeft: 'auto', fontSize: '0.8rem' }}></i>
+          </button>
+        )}
 
         {/* AVISO: hay un poder por elegir → manda a la sección de Poderes */}
         {hayPoderPendiente && (
