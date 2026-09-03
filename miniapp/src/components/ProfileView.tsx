@@ -350,7 +350,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   ];
 
   if (mostrarVersatilidad) {
-    estadisticasSecundarias.push({ label: 'Versatilidad', valor: `+${versatilidad}%`, icono: 'stars' });
+    estadisticasSecundarias.push({ label: 'Versatilidad', valor: `+${versatilidad}`, icono: 'stars' });
   }
 
   return (
