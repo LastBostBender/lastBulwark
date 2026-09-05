@@ -1848,16 +1848,25 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                       miCombatiente?.nivel ?? 1,
                     );
 
+                  // Chequeo cosmético: el backend sigue siendo la fuente de
+                  // verdad (mana_insuficiente), esto solo evita el viaje
+                  // redondo de tocar un poder que ya sabemos que va a
+                  // rechazar por maná.
+                  const sinMana =
+                    costoMana !== null &&
+                    (miCombatiente?.pm_actual ?? 0) < costoMana;
+
                   return (
                     <button
                       key={poder.id}
-                      disabled={enviando}
+                      disabled={enviando || sinMana}
                       onClick={() =>
                         tocarPoder(poder)
                       }
                       className="btn btn-outline-light d-flex flex-column align-items-center justify-content-center"
                       style={{
                         position: 'relative',
+                        opacity: sinMana ? 0.45 : 1,
                       }}
                     >
                       {costoMana !== null && (
@@ -1873,7 +1882,9 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                             gap: '2px',
                             fontSize: '0.65rem',
                             lineHeight: 1,
-                            color: '#2980b9',
+                            color: sinMana
+                              ? '#e05353'
+                              : '#2980b9',
                           }}
                         >
                           <span
@@ -1883,9 +1894,14 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                               borderRadius:
                                 '50%',
                               backgroundColor:
-                                '#2980b9',
-                              boxShadow:
-                                '0 0 4px #2980b9',
+                                sinMana
+                                  ? '#e05353'
+                                  : '#2980b9',
+                              boxShadow: `0 0 4px ${
+                                sinMana
+                                  ? '#e05353'
+                                  : '#2980b9'
+                              }`,
                             }}
                           />
                           {costoMana}
