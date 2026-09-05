@@ -30,6 +30,7 @@ interface ProfileViewProps {
     suerte: number;
     critico: number;
     aura: number;
+    recibo_valentia: number;
     elo: number;
     oro: number;
     clase_id: number;
@@ -559,6 +560,9 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
         >
           <span>
             <i className="bi bi-coin me-1"></i> {profile.oro}
+          </span>
+          <span>
+            <i className="bi bi-receipt me-1"></i> {profile.recibo_valentia}
           </span>
           <span>
             <i className="bi bi-ticket-detailed me-1"></i> {profile.aura}
