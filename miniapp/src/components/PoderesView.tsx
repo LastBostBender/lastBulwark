@@ -200,6 +200,107 @@ const statsDominantes = (stats: { fue: number; int: number; agi: number }): Arra
 // Los 5 hitos van en una franja horizontal scrolleable (no entran los 5 juntos
 // en el ancho del modal), unidos por una línea. Tocar un hito muestra qué
 // poder entrega ese nivel — o un placeholder si todavía no está cargado.
+// Franja de hitos reusable: círculos con el número de nivel, unidos por un
+// hilo, scrolleable horizontal. El color/opacidad de cada círculo lo decide
+// quien la usa (colorHito/opacidadHito) — en el modal de selección van todos
+// al mismo color vivo (preview de la clase completa); en el panel de "mi
+// clase" ya elegida, el hilo se pinta con el theme de zona y cada hito se ve
+// opaco hasta que el nivel real lo alcanza, ahí se pone vívido.
+const HitosStrip = ({
+  poderesHito,
+  theme,
+  colorHito,
+  opacidadHito,
+}: {
+  poderesHito: Poder[];
+  theme: ReturnType<typeof getTheme>;
+  colorHito: (hito: number) => string;
+  opacidadHito: (hito: number) => number;
+}) => {
+  const [hitoAbierto, setHitoAbierto] = useState<number | null>(null);
+
+  const poderDeHito = (hito: number) =>
+    poderesHito.find((p) => p.nombre && (p as any).nivel_minimo === hito);
+
+  return (
+    <div>
+      <div style={{ overflowX: 'auto', paddingBottom: '0.3rem' }}>
+        <div style={{ position: 'relative', display: 'inline-flex', gap: '1.6rem', padding: '0 0.5rem', minWidth: '100%' }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '1.3rem',
+              right: '1.3rem',
+              height: '2px',
+              backgroundColor: `${theme.border}`,
+              zIndex: 0,
+            }}
+          />
+          {HITOS.map((hito) => {
+            const abierto = hitoAbierto === hito;
+            const color = colorHito(hito);
+            const opacidad = opacidadHito(hito);
+            return (
+              <button
+                key={hito}
+                onClick={() => setHitoAbierto(abierto ? null : hito)}
+                className="rounded-circle"
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  flex: '0 0 auto',
+                  width: '2.6rem',
+                  height: '2.6rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: abierto ? color : theme.cardBg,
+                  color: abierto ? '#111' : color,
+                  border: `2px solid ${color}`,
+                  opacity: opacidad,
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'opacity 0.3s ease',
+                }}
+              >
+                {hito}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {hitoAbierto && (
+        <div style={{ padding: '0.6rem 0.3rem 0.8rem', fontSize: '0.85rem' }}>
+          {(() => {
+            const poder = poderDeHito(hitoAbierto);
+            const color = colorHito(hitoAbierto);
+            if (!poder) {
+              return (
+                <p style={{ color: theme.text, opacity: 0.6, margin: 0, fontStyle: 'italic' }}>
+                  Todavía sin definir.
+                </p>
+              );
+            }
+            return (
+              <>
+                <div className="d-flex align-items-center gap-2 mb-1">
+                  <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color, fontSize: '1rem' }}></i>
+                  <span style={{ color }}>{poder.nombre}</span>
+                </div>
+                <p style={{ color: theme.text, margin: 0 }}>{poder.descripcion}</p>
+              </>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClaseModal = ({
   clase,
   poderesHito,
@@ -215,11 +316,7 @@ const ClaseModal = ({
   onCancelar: () => void;
   onAceptar: () => void;
 }) => {
-  const [hitoAbierto, setHitoAbierto] = useState<number | null>(null);
   const color = COLOR_STAT[clase.stat_principal];
-
-  const poderDeHito = (hito: number) =>
-    poderesHito.find((p) => p.nombre && (p as any).nivel_minimo === hito);
 
   return (
     <div
@@ -265,76 +362,14 @@ const ClaseModal = ({
           <p style={{ color: theme.text, fontSize: '0.9rem', margin: 0 }}>{clase.descripcion}</p>
         </div>
 
-        {/* Hitos: franja horizontal scrolleable, círculos unidos por una línea */}
+        {/* Hitos: preview completo de la clase — todos vívidos, es lo que ganarías */}
         <div style={{ padding: '1rem 1rem 0.4rem', borderBottom: `1px solid ${theme.border}` }}>
-          <div style={{ overflowX: 'auto', paddingBottom: '0.3rem' }}>
-            <div style={{ position: 'relative', display: 'inline-flex', gap: '1.6rem', padding: '0 0.5rem', minWidth: '100%' }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '1.3rem',
-                  right: '1.3rem',
-                  height: '2px',
-                  backgroundColor: `${color}55`,
-                  zIndex: 0,
-                }}
-              />
-              {HITOS.map((hito) => {
-                const abierto = hitoAbierto === hito;
-                return (
-                  <button
-                    key={hito}
-                    onClick={() => setHitoAbierto(abierto ? null : hito)}
-                    className="rounded-circle"
-                    style={{
-                      position: 'relative',
-                      zIndex: 1,
-                      flex: '0 0 auto',
-                      width: '2.6rem',
-                      height: '2.6rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: abierto ? color : (theme.cardBg),
-                      color: abierto ? '#111' : color,
-                      border: `2px solid ${color}`,
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {hito}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {hitoAbierto && (
-            <div style={{ padding: '0.6rem 0.3rem 0.8rem', fontSize: '0.85rem' }}>
-              {(() => {
-                const poder = poderDeHito(hitoAbierto);
-                if (!poder) {
-                  return (
-                    <p style={{ color: theme.text, opacity: 0.6, margin: 0, fontStyle: 'italic' }}>
-                      Todavía sin definir.
-                    </p>
-                  );
-                }
-                return (
-                  <>
-                    <div className="d-flex align-items-center gap-2 mb-1">
-                      <i className={`bi bi-${poder.icono ?? 'stars'}`} style={{ color, fontSize: '1rem' }}></i>
-                      <span style={{ color }}>{poder.nombre}</span>
-                    </div>
-                    <p style={{ color: theme.text, margin: 0 }}>{poder.descripcion}</p>
-                  </>
-                );
-              })()}
-            </div>
-          )}
+          <HitosStrip
+            poderesHito={poderesHito}
+            theme={theme}
+            colorHito={() => color}
+            opacidadHito={() => 1}
+          />
         </div>
 
         {/* Cancelar / Aceptar */}
@@ -378,6 +413,54 @@ const ClaseModal = ({
             <i className="bi bi-check-lg"></i>
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Panel de "mi clase" ya elegida: mismo sistema de hitos, pero persistente
+// (no modal) y coloreado con el theme de zona en vez del color por stat.
+// Los hitos ya alcanzados (nivel actual >= hito) se ven vívidos; los que
+// faltan quedan opacos, como progreso.
+const MiClasePanel = ({
+  clase,
+  poderesHito,
+  perfil,
+  theme,
+}: {
+  clase: Clase;
+  poderesHito: Poder[];
+  perfil: PoderesViewProps['perfil'];
+  theme: ReturnType<typeof getTheme>;
+}) => {
+  return (
+    <div
+      className="mb-3"
+      style={{
+        border: `1px solid ${theme.border}`,
+        borderRadius: '6px',
+        backgroundColor: theme.cardBg,
+      }}
+    >
+      <div
+        className="d-flex align-items-center gap-2"
+        style={{ padding: '0.7rem 0.9rem', borderBottom: `1px solid ${theme.border}` }}
+      >
+        <i className={`bi bi-${clase.icono}`} style={{ color: theme.accent, fontSize: '1.2rem' }}></i>
+        <span style={{ color: theme.accent, fontFamily: 'var(--font-display)', fontSize: '0.9rem', letterSpacing: '0.5px' }}>
+          {clase.nombre}
+        </span>
+      </div>
+      <div style={{ padding: '0.6rem 0.9rem 0.2rem' }}>
+        <p style={{ color: theme.text, fontSize: '0.85rem', opacity: 0.8, margin: 0 }}>{clase.descripcion}</p>
+      </div>
+      <div style={{ padding: '0.8rem 0.9rem 0.6rem' }}>
+        <HitosStrip
+          poderesHito={poderesHito}
+          theme={theme}
+          colorHito={() => theme.accent}
+          opacidadHito={(hito) => (perfil.nivel >= hito ? 1 : 0.3)}
+        />
       </div>
     </div>
   );
@@ -671,6 +754,19 @@ export const PoderesView = ({
             Cargando...
           </p>
         )}
+
+        {!cargando && perfil.clase !== 'NPC consciente' && (() => {
+          const miClase = clases.find((c) => c.nombre === perfil.clase);
+          if (!miClase) return null;
+          return (
+            <MiClasePanel
+              clase={miClase}
+              perfil={perfil}
+              theme={theme}
+              poderesHito={catalogo.filter((p) => p.clase_requerida === miClase.nombre)}
+            />
+          );
+        })()}
 
         {!cargando && clasesCandidatas.length > 0 && (
           <div className="mb-3">
