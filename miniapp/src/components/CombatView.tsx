@@ -1638,92 +1638,37 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                   gap: '6px',
                 }}
               >
-                {objetivosPosibles
-                  .slice(0, 4)
-                  .map((obj) => (
-                    <button
-                      key={obj.id}
-                      disabled={enviando}
-                      onClick={() =>
-                        seleccionarObjetivo(
-                          obj.id,
-                        )
-                      }
-                      className="btn btn-outline-light text-start p-2"
-                      style={{
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      <div>{obj.nombre}</div>
-
-                      <MiniBarra
-                        actual={obj.ps_actual}
-                        max={obj.ps_max}
-                        color="#c0392b"
-                      />
-
-                      {obj.tipo === 'jugador' && (
-                        <MiniBarra
-                          actual={obj.pm_actual}
-                          max={obj.pm_max}
-                          color="#2980b9"
-                        />
-                      )}
-                    </button>
-                  ))}
-
-                {objetivosPosibles.length >
-                  4 && (
+                {objetivosPosibles.map((obj) => (
                   <button
+                    key={obj.id}
                     disabled={enviando}
                     onClick={() =>
                       seleccionarObjetivo(
-                        objetivosPosibles[4]
-                          .id,
+                        obj.id,
                       )
                     }
                     className="btn btn-outline-light text-start p-2"
                     style={{
-                      gridColumn:
-                        '1 / -1',
                       fontSize: '0.85rem',
                     }}
                   >
-                    <div>
-                      {
-                        objetivosPosibles[4]
-                          .nombre
-                      }
-                    </div>
+                    <div>{obj.nombre}</div>
 
                     <MiniBarra
-                      actual={
-                        objetivosPosibles[4]
-                          .ps_actual
-                      }
-                      max={
-                        objetivosPosibles[4]
-                          .ps_max
-                      }
+                      actual={obj.ps_actual}
+                      max={obj.ps_max}
                       color="#c0392b"
                     />
 
-                    {objetivosPosibles[4].tipo ===
-                      'jugador' && (
+                    {obj.tipo === 'jugador' && (
                       <MiniBarra
-                        actual={
-                          objetivosPosibles[4]
-                            .pm_actual
-                        }
-                        max={
-                          objetivosPosibles[4]
-                            .pm_max
-                        }
+                        actual={obj.pm_actual}
+                        max={obj.pm_max}
                         color="#2980b9"
                       />
                     )}
                   </button>
-                )}
+                ))}
               </div>
           </div>
         ) : mostrarInventario ? (
