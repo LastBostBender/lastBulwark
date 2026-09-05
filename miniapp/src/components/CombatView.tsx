@@ -186,11 +186,12 @@ const MiniBarra = ({
 // Grid de la banda: 1 -> tarjeta angosta centrada, 2 -> fila de 2, 3 -> fila de 3,
 // 4 (máximo posible en combate) -> fila única de 4, con piso de 60px por tarjeta
 // para no romperse en pantallas angostas (~320px).
-function gridBanda(n: number): { gridTemplateColumns: string; gridTemplateRows?: string } {
-  if (n <= 1) return { gridTemplateColumns: 'minmax(0, 100px)' };
-  if (n === 2) return { gridTemplateColumns: 'repeat(2, minmax(0, 92px))' };
-  if (n === 3) return { gridTemplateColumns: 'repeat(3, minmax(0, 84px))' };
-  return { gridTemplateColumns: 'repeat(4, minmax(60px, 1fr))' };
+// Cada tarjeta ocupa 1/n del ancho total disponible (n = cantidad de ese
+// bando), sin importar cuántas tenga el otro bando: 1 vs 2 hace que la
+// tarjeta sola ocupe el ancho completo, y las otras dos se repartan la
+// mitad cada una — nunca un tamaño fijo en px alineado a un costado.
+function gridBanda(n: number): { gridTemplateColumns: string } {
+  return { gridTemplateColumns: `repeat(${Math.max(1, n)}, 1fr)` };
 }
 
 const TarjetaCombatiente = ({
@@ -234,22 +235,19 @@ const TarjetaCombatiente = ({
 const BandaCombate = ({
   combatientes,
   colorBorde,
-  align = 'start',
 }: {
   combatientes: Combatiente[];
   colorBorde: string;
-  align?: 'start' | 'end';
 }) => {
   if (combatientes.length === 0) return null;
 
   return (
-    <div className={`d-flex justify-content-${align} px-2 py-1`}>
+    <div className="px-2 py-1">
       <div
         style={{
           display: 'grid',
           gap: '4px',
           width: '100%',
-          justifyContent: align === 'end' ? 'end' : 'start',
           ...gridBanda(combatientes.length),
         }}
       >
@@ -1451,7 +1449,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       </header>
 
       {/* Banda enemiga (visual, no apunta) — fuera del contenedor de turnos */}
-      <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" align="end" />
+      <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" />
 
       <div className="flex-grow-1 d-flex overflow-hidden">
         {/* Centro: log */}
@@ -1503,7 +1501,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       </div>
 
       {/* Banda propia (visual, no apunta) */}
-      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" align="start" />
+      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" />
 
       {/* Aviso visible cuando el backend rechazó el último clic */}
       {errorAccion && (
