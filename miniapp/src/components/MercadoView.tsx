@@ -12,13 +12,14 @@ interface MercadoViewProps {
     clase: string;
     oro: number;
     aura: number;
+    recibo_valentia: number;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
 }
 
 type CategoriaId =
   | 'cabeza' | 'torso' | 'pantalones' | 'pies' | 'accesorio' | 'arma'
-  | 'chatarra' | 'usable' | 'aura' | 'alquimia' | 'herreria';
+  | 'chatarra' | 'usable' | 'aura' | 'recibo' | 'alquimia' | 'herreria';
 
 interface Categoria {
   id: CategoriaId;
@@ -42,6 +43,7 @@ const CATEGORIAS: Categoria[] = [
   { id: 'chatarra', titulo: 'Chatarra', nombreTienda: 'Chatarrería "Total, Algo Vale"', icono: 'gear-wide-connected', navegable: true },
   { id: 'usable', titulo: 'Consumibles', nombreTienda: 'Farmacia de Guardia Emocional', icono: 'apple', navegable: true },
   { id: 'aura', titulo: 'Tienda de Aura', nombreTienda: 'Casa de Cambio de Vibras', icono: 'ticket-detailed', navegable: true },
+  { id: 'recibo', titulo: 'Recibo de Valentía', nombreTienda: 'Sastrería del Que Volvió Entero', icono: 'receipt', navegable: true },
   { id: 'alquimia', titulo: 'Alquimia', nombreTienda: 'Laboratorio Clandestino', icono: 'beaker', navegable: false },
   { id: 'herreria', titulo: 'Herrería', nombreTienda: 'Taller de Turno Extra', icono: 'bricks', navegable: false },
 ];
@@ -52,9 +54,10 @@ interface ItemTienda {
   descripcion: string;
   icono: string;
   nivel_minimo: number;
-  origen: 'tienda_oro' | 'tienda_aura';
+  origen: 'tienda_oro' | 'tienda_aura' | 'tienda_recibo';
   valor_base: number | null;
   precio_compra_aura: number | null;
+  precio_compra_recibo: number | null;
   tipo: 'equipamiento' | 'usable' | 'chatarra';
   slot_equipo: string | null;
   efecto: { stats?: Record<string, number>; pasiva?: string | null } | null;
@@ -85,6 +88,7 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   nivel_insuficiente: 'Tu nivel no alcanza para esto.',
   oro_insuficiente: 'No te alcanza el crédito.',
   aura_insuficiente: 'No te alcanza el aura.',
+  recibo_insuficiente: 'No te alcanza el Recibo de valentía.',
   bolsa_llena: 'No hay espacio en tu bolsa para esto.',
 };
 
@@ -140,10 +144,12 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
 
     let query = supabase
       .from('item_definitions')
-      .select('id, nombre, descripcion, icono, nivel_minimo, origen, valor_base, precio_compra_aura, tipo, slot_equipo, efecto, powers(nombre, descripcion, icono)');
+      .select('id, nombre, descripcion, icono, nivel_minimo, origen, valor_base, precio_compra_aura, precio_compra_recibo, tipo, slot_equipo, efecto, powers(nombre, descripcion, icono)');
 
     if (cat.id === 'aura') {
       query = query.eq('origen', 'tienda_aura');
+    } else if (cat.id === 'recibo') {
+      query = query.eq('origen', 'tienda_recibo');
     } else if (cat.id === 'usable') {
       query = query.eq('origen', 'tienda_oro').eq('tipo', 'usable');
     } else if (cat.id === 'chatarra') {
@@ -223,6 +229,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
         >
           <span><i className="bi bi-coin me-1" style={{ color: theme.accent }}></i>{perfil.oro ?? 0}</span>
           <span><i className="bi bi-ticket-detailed me-1" style={{ color: theme.accent }}></i>{perfil.aura ?? 0}</span>
+          <span><i className="bi bi-receipt me-1" style={{ color: theme.accent }}></i>{perfil.recibo_valentia ?? 0}</span>
         </div>
 
         {avisoCrafteo && (
@@ -317,8 +324,22 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               {items.map((item) => {
-                const precio = item.origen === 'tienda_oro' ? item.valor_base : item.precio_compra_aura;
-                const saldo = item.origen === 'tienda_oro' ? perfil.oro ?? 0 : perfil.aura ?? 0;
+                const precio =
+                  item.origen === 'tienda_oro' ? item.valor_base
+                  : item.origen === 'tienda_aura' ? item.precio_compra_aura
+                  : item.precio_compra_recibo;
+                const saldo =
+                  item.origen === 'tienda_oro' ? perfil.oro ?? 0
+                  : item.origen === 'tienda_aura' ? perfil.aura ?? 0
+                  : perfil.recibo_valentia ?? 0;
+                const nombreMoneda =
+                  item.origen === 'tienda_oro' ? 'crédito'
+                  : item.origen === 'tienda_aura' ? 'aura'
+                  : 'Recibo de valentía';
+                const iconoMoneda =
+                  item.origen === 'tienda_oro' ? 'coin'
+                  : item.origen === 'tienda_aura' ? 'ticket-detailed'
+                  : 'receipt';
                 const sinNivel = perfil.nivel < item.nivel_minimo;
                 const sinSaldo = precio != null && saldo < precio;
                 const deshabilitado = sinNivel || sinSaldo || comprando === item.id;
@@ -347,7 +368,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div>{item.nombre}</div>
                         <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>
-                          {precio ?? '—'} {item.origen === 'tienda_oro' ? 'crédito' : 'aura'}
+                          {precio ?? '—'} {nombreMoneda}
                           {item.nivel_minimo > 1 && ` · Nivel mín. ${item.nivel_minimo}`}
                         </div>
                       </div>
@@ -380,7 +401,7 @@ export const MercadoView = ({ perfil, onNavigate }: MercadoViewProps) => {
                           >
                             {/* Mismo ícono que referencia la moneda en el header: en este
                                 contexto (botón de acción sobre un ítem) se lee como "comprar". */}
-                            <i className={`bi bi-${item.origen === 'tienda_oro' ? 'coin' : 'ticket-detailed'}`}></i>
+                            <i className={`bi bi-${iconoMoneda}`}></i>
                           </button>
                           {(sinNivel || sinSaldo) && (
                             <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
