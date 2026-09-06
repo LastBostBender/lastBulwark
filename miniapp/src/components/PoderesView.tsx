@@ -42,6 +42,7 @@ interface Poder {
   icono: string;
   parametros: { efectos: EfectoPoder[] };
   cooldown_turnos: number | null;
+  costo_pm_base: number | null;
   nivel_minimo?: number | null;
   clase_requerida?: string | null;
 }
@@ -188,6 +189,43 @@ function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): st
     default:
       return '';
   }
+}
+
+// Réplica de combat_costo_mana (SQL) / misma función que usa CombatView —
+// mismo costo base + franjas por nivel. Es solo para mostrar el número acá,
+// el backend sigue siendo la fuente de verdad al momento de tirar el poder.
+function costoManaPoder(costoBase: number | null, nivel: number): number | null {
+  if (costoBase === null || costoBase === undefined) return null;
+  const franja =
+    nivel <= 9 ? 0
+    : nivel <= 19 ? 1
+    : nivel <= 29 ? 3
+    : nivel <= 39 ? 5
+    : nivel <= 49 ? 9
+    : 14;
+  return costoBase + franja;
+}
+
+// Valor de daño/sanación de un poder para el resumen final: busca el primer
+// efecto de tipo 'daño' o 'curacion' entre sus efectos (la mayoría de los
+// poderes activos tienen uno solo; los "variable_bando" como Changquian
+// tienen ambos, y acá mostramos el de daño ya que es el que aplica al
+// objetivo por defecto — el de curación se ve igual si el jugador apunta
+// a un aliado). Si el poder no tiene ninguno (solo buffs/debuffs), no hay
+// nada que mostrar en esta línea.
+function efectoDanoOSanacion(
+  poder: Poder,
+  perfil: PoderesViewProps['perfil'],
+): { etiqueta: 'Daño' | 'Sanación'; valor: number } | null {
+  const efectos = poder.parametros?.efectos ?? [];
+  const e =
+    efectos.find((ef) => ef.tipo === 'daño') ??
+    efectos.find((ef) => ef.tipo === 'curacion');
+  if (!e) return null;
+  return {
+    etiqueta: e.tipo === 'curacion' ? 'Sanación' : 'Daño',
+    valor: curacionEstimada(e, perfil),
+  };
 }
 
 const statsDominantes = (stats: { fue: number; int: number; agi: number }): Array<'fue' | 'int' | 'agi'> => {
@@ -501,18 +539,29 @@ const DetallePoder = ({
         </div>
       )}
 
-      {poder.cooldown_turnos && (
-        <div
-          style={{
-            color: theme.text,
-            opacity: 0.75,
-            marginTop: '0.4rem',
-            fontSize: '0.8rem',
-          }}
-        >
-          CD: {poder.cooldown_turnos} turno{poder.cooldown_turnos > 1 ? 's' : ''}
-        </div>
-      )}
+      {(() => {
+        const efectoPrincipal = efectoDanoOSanacion(poder, perfil);
+        const pm = costoManaPoder(poder.costo_pm_base, perfil.nivel);
+        const partes: string[] = [];
+        if (efectoPrincipal) partes.push(`${efectoPrincipal.etiqueta}: ${efectoPrincipal.valor}`);
+        if (pm !== null) partes.push(`PM: ${pm}`);
+        if (poder.cooldown_turnos) {
+          partes.push(`CD: ${poder.cooldown_turnos} turno${poder.cooldown_turnos > 1 ? 's' : ''}`);
+        }
+        if (partes.length === 0) return null;
+        return (
+          <div
+            style={{
+              color: theme.text,
+              opacity: 0.75,
+              marginTop: '0.4rem',
+              fontSize: '0.8rem',
+            }}
+          >
+            {partes.join(' • ')}
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -574,7 +623,7 @@ export const PoderesView = ({
       supabase
         .from('powers')
         .select(
-          'id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos, nivel_minimo, clase_requerida'
+          'id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos, costo_pm_base, nivel_minimo, clase_requerida'
         ),
 
       supabase
