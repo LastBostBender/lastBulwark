@@ -115,80 +115,11 @@ function formatearRestante(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-const NOMBRE_TARGET: Record<string, string> = {
-  self: 'ti',
-  enemigo: 'enemigo',
-  todos_enemigos: 'todos los enemigos',
-  todos_aliados: 'todos los aliados',
-  aliado_objetivo: 'aliado objetivo',
-  aliado_con_menos_vida: 'aliado con menos vida',
-  siguientes_enemigos_cola: 'próximos en la cola',
-};
-
-function etiquetaDestino(target: string): string {
-  return NOMBRE_TARGET[target] ?? target;
-}
-
-function valorEscalado(e: EfectoPoder, perfil: PoderesViewProps['perfil']): number {
-  if (!e.escala_por) return e.valor;
-  const statValor = Number(perfil[e.escala_por] ?? 0);
-  const factor = 1 + statValor / 100;
-  return Math.trunc(e.valor * factor);
-}
-
 function curacionEstimada(e: EfectoPoder, perfil: PoderesViewProps['perfil']): number {
   const nivel = Math.max(5, perfil.nivel ?? 5);
   const crecimiento = 1 + (4 * Math.max(0, Math.min(45, nivel - 5))) / 45;
   const ataque = e.escala_por ? Math.max(0, Number(perfil[e.escala_por] ?? 0)) : 0;
   return Math.max(0, Math.round(e.valor * crecimiento * (1 + ataque / 100)));
-}
-
-function formatearEfecto(e: EfectoPoder, perfil: PoderesViewProps['perfil']): string {
-  const valor = valorEscalado(e, perfil);
-  const duracion = e.duracion_turnos && e.duracion_turnos > 0 ? ` / ${e.duracion_turnos}t` : '';
-  const prob = e.probabilidad ? ` (${e.probabilidad}% prob.)` : '';
-  const destino = ` · ${etiquetaDestino(e.target)}`;
-
-  switch (e.unidad) {
-    case 'porcentaje_ataque_fisico':
-    case 'porcentaje_ataque_magico':
-      return `+${valor}% daño${destino}`;
-
-    case 'porcentaje_vida_maxima':
-    case 'porcentaje_vida_actual': {
-      const signo = e.tipo === 'curacion' ? '+' : '-';
-      return `${signo}${Math.abs(valor)}% vida${duracion}${destino}`;
-    }
-
-    case 'base_por_nivel': {
-      const cura = curacionEstimada(e, perfil);
-      const critInfo = e.critico_porcentaje
-        ? ` (crít ${e.critico_porcentaje}%: ${cura * 2})`
-        : '';
-      return `+${cura} PS${critInfo}${destino}`;
-    }
-
-    case 'porcentaje_dano_recibido':
-      return `+${valor}% contraataque${destino}`;
-
-    case 'porcentaje_stat':
-    case 'puntos_porcentuales': {
-      const signo = valor >= 0 ? '+' : '';
-      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `${signo}${valor}% ${stat}${duracion}${prob}${destino}`;
-    }
-
-    case 'turnos':
-      return `Inhabilita ${valor} turno${valor > 1 ? 's' : ''}${destino}`;
-
-    case 'robo_variable': {
-      const stat = NOMBRE_STAT[e.stat ?? ''] ?? e.stat;
-      return `+${stat} robad${e.stat === 'velocidad' ? 'a' : 'o'}${duracion}${destino}`;
-    }
-
-    default:
-      return '';
-  }
 }
 
 // Réplica de combat_costo_mana (SQL) / misma función que usa CombatView —
@@ -206,26 +137,22 @@ function costoManaPoder(costoBase: number | null, nivel: number): number | null 
   return costoBase + franja;
 }
 
-// Valor de daño/sanación de un poder para el resumen final: busca el primer
-// efecto de tipo 'daño' o 'curacion' entre sus efectos (la mayoría de los
-// poderes activos tienen uno solo; los "variable_bando" como Changquian
-// tienen ambos, y acá mostramos el de daño ya que es el que aplica al
-// objetivo por defecto — el de curación se ve igual si el jugador apunta
-// a un aliado). Si el poder no tiene ninguno (solo buffs/debuffs), no hay
-// nada que mostrar en esta línea.
+// Valores de daño/sanación de un poder para el resumen final: junta TODOS
+// los efectos de tipo 'daño' y 'curacion' que tenga (no solo el primero).
+// La mayoría de los poderes activos tienen uno solo, pero los
+// "variable_bando" como Changquian hacen daño si apuntás a un enemigo o
+// sana si apuntás a un aliado — ahí se muestran ambos valores a la vez.
 function efectoDanoOSanacion(
   poder: Poder,
   perfil: PoderesViewProps['perfil'],
-): { etiqueta: 'Daño' | 'Sanación'; valor: number } | null {
+): Array<{ etiqueta: 'Daño' | 'Sanación'; valor: number }> {
   const efectos = poder.parametros?.efectos ?? [];
-  const e =
-    efectos.find((ef) => ef.tipo === 'daño') ??
-    efectos.find((ef) => ef.tipo === 'curacion');
-  if (!e) return null;
-  return {
-    etiqueta: e.tipo === 'curacion' ? 'Sanación' : 'Daño',
-    valor: curacionEstimada(e, perfil),
-  };
+  return efectos
+    .filter((e) => e.tipo === 'daño' || e.tipo === 'curacion')
+    .map((e) => ({
+      etiqueta: (e.tipo === 'curacion' ? 'Sanación' : 'Daño') as 'Daño' | 'Sanación',
+      valor: curacionEstimada(e, perfil),
+    }));
 }
 
 const statsDominantes = (stats: { fue: number; int: number; agi: number }): Array<'fue' | 'int' | 'agi'> => {
@@ -513,37 +440,18 @@ const DetallePoder = ({
   theme: ReturnType<typeof getTheme>;
   perfil: PoderesViewProps['perfil'];
 }) => {
-  const lineas = (poder.parametros?.efectos ?? [])
-    .map((e) => formatearEfecto(e, perfil))
-    .filter(Boolean);
-
   return (
     <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
-      <p style={{ color: theme.text, marginBottom: lineas.length ? '0.5rem' : 0 }}>
+      <p style={{ color: theme.text, marginBottom: 0 }}>
         {poder.descripcion}
       </p>
 
-      {lineas.length > 0 && (
-        <div
-          style={{
-            borderTop: `1px solid ${theme.border}`,
-            borderBottom: `1px solid ${theme.border}`,
-            padding: '0.4rem 0',
-          }}
-        >
-          {lineas.map((linea, i) => (
-            <div key={i} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
-              {linea}
-            </div>
-          ))}
-        </div>
-      )}
-
       {(() => {
-        const efectoPrincipal = efectoDanoOSanacion(poder, perfil);
+        const efectos = efectoDanoOSanacion(poder, perfil);
         const pm = costoManaPoder(poder.costo_pm_base, perfil.nivel);
-        const partes: string[] = [];
-        if (efectoPrincipal) partes.push(`${efectoPrincipal.etiqueta}: ${efectoPrincipal.valor}`);
+        const partes: string[] = [
+          ...efectos.map((ef) => `${ef.etiqueta}: ${ef.valor}`),
+        ];
         if (pm !== null) partes.push(`PM: ${pm}`);
         if (poder.cooldown_turnos) {
           partes.push(`CD: ${poder.cooldown_turnos} turno${poder.cooldown_turnos > 1 ? 's' : ''}`);
