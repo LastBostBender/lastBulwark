@@ -74,6 +74,7 @@ function mensajeResultado(resultado: any): string {
 
 function mensajeResultadoCombate(resultado: any): string {
   const nivelJefe = resultado?.nivel_jefe;
+  const oroOtorgado = resultado?.oro_otorgado ?? 0;
   const participantes = (resultado?.participantes ?? []) as Array<{
     nombre: string; xp_added?: number; leveled_up?: boolean; new_level?: number;
   }>;
@@ -91,7 +92,7 @@ function mensajeResultadoCombate(resultado: any): string {
     })
     .join("\n");
 
-  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n\n${detalleXp}`;
+  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n\n${detalleXp}\n\n💰 +${oroOtorgado} crédito para cada participante`;
 }
 
 export async function handleCronTick() {
