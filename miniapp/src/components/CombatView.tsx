@@ -138,6 +138,7 @@ function costoManaPoder(
 type Categoria =
   | 'enemigo'
   | 'aliado'
+  | 'variable'
   | 'area_enemigos'
   | 'area_aliados'
   | 'area_todos'
@@ -153,6 +154,11 @@ function categoriaObjetivo(poder: Poder): Categoria {
   if (targets.has('todos_en_combate')) return 'area_todos';
   if (targets.has('todos_enemigos')) return 'area_enemigos';
   if (targets.has('todos_aliados')) return 'area_aliados';
+  // 'variable': el poder decide efecto por efecto según el bando real del
+  // objetivo (ej. Changquian cura si es aliado, daña si es enemigo). Antes
+  // esto caía al 'return null' de abajo y el poder se disparaba SIN
+  // objetivo -- el backend lo rechazaba siempre con 'falta_objetivo'.
+  if (targets.has('variable')) return 'variable';
   if (targets.has('enemigo')) return 'enemigo';
   if (targets.has('aliado_objetivo')) return 'aliado';
 
@@ -295,6 +301,14 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // Solo se usa para poderes de categoría 'variable' (ej. Changquian): el
+  // jugador primero elige bando (aliado/enemigo) en un grid 1x2, y recién
+  // ahí se lista la grilla de objetivos de ese bando, igual que un poder
+  // normal de esa categoría.
+  const [bandoVariable, setBandoVariable] = useState<
+    'aliado' | 'enemigo' | null
+  >(null);
+
   const [poderSeleccionado, setPoderSeleccionado] =
     useState<Poder | null>(null);
   const [accionArma, setAccionArma] = useState(false);
@@ -1010,6 +1024,16 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       return;
     }
 
+    if (cat === 'variable') {
+      // Puede ir a cualquier bando -- primero se elige bando (grid 1x2),
+      // después se lista según ese bando. Nunca se salta este paso aunque
+      // algún bando tenga un solo blanco posible: elegir bando ES la
+      // decisión relevante acá (de eso depende si cura o daña).
+      setBandoVariable(null);
+      setPoderSeleccionado(poder);
+      return;
+    }
+
     // Objetivo unico: si solo queda un blanco posible, no tiene sentido
     // pedir que lo elijan — se dispara directo contra ese.
     const objetivos = objetivosPara(cat);
@@ -1334,7 +1358,14 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             )
           : [];
 
-  const objetivosPosibles = objetivosPara(categoria);
+  // Para categoría 'variable', objetivosPosibles se arma con el bando que
+  // el jugador eligió en el grid 1x2 (bandoVariable), reusando el mismo
+  // filtro de 'aliado'/'enemigo'. Si todavía no eligió bando, queda vacío
+  // a propósito -- el render de abajo muestra el selector de bando en ese
+  // caso, no la grilla de objetivos.
+  const objetivosPosibles = objetivosPara(
+    categoria === 'variable' ? bandoVariable : categoria,
+  );
 
   const seleccionarObjetivo = (
     objetivoId: number,
@@ -1622,12 +1653,39 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                 onClick={() => {
                   setPoderSeleccionado(null);
                   setAccionArma(false);
+                  setBandoVariable(null);
                 }}
               >
                 <i className="bi bi-x-lg" />
               </button>
             </div>
 
+            {categoria === 'variable' && bandoVariable === null ? (
+              // Paso 1 de 'variable': elegir bando en grid 1x2. Recién con
+              // eso elegido se arma la grilla normal de objetivos de abajo.
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '6px',
+                }}
+              >
+                <button
+                  className="btn btn-outline-light p-3"
+                  onClick={() => setBandoVariable('aliado')}
+                >
+                  <i className="bi bi-people-fill d-block mb-1" />
+                  Bando aliado
+                </button>
+                <button
+                  className="btn btn-outline-light p-3"
+                  onClick={() => setBandoVariable('enemigo')}
+                >
+                  <i className="bi bi-crosshair d-block mb-1" />
+                  Bando enemigo
+                </button>
+              </div>
+            ) : (
             <div
                 style={{
                   display: 'grid',
@@ -1668,6 +1726,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                   </button>
                 ))}
               </div>
+            )}
           </div>
         ) : mostrarInventario ? (
           // --- Consumibles (solo tipo 'usable', no interactúa con equipo) ---
