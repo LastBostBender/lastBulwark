@@ -44,7 +44,7 @@ interface ProfileViewProps {
 // Costo de XP para subir del nivel dado al siguiente, calculado desde 0
 // (no acumulado histórico — ver sumar_xp/mb_otorgar_xp en el backend).
 const xpNecesaria = (nivel: number): number => {
-  return Math.floor(20 * Math.pow(nivel, 1.8));
+  return Math.floor(150 * Math.pow(nivel, 1.8));
 };
 
 
