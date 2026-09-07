@@ -46,6 +46,7 @@ interface Poder {
   costo_pm_base: number | null;
   nivel_minimo?: number | null;
   clase_requerida?: string | null;
+  clase_requerida_id?: number | null;
 }
 
 interface BuffActivo {
@@ -532,7 +533,7 @@ export const PoderesView = ({
       supabase
         .from('powers')
         .select(
-          'id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos, costo_pm_base, nivel_minimo, clase_requerida'
+          'id, nombre, tipo, stat_requerido, tier, descripcion, icono, parametros, cooldown_turnos, costo_pm_base, nivel_minimo, clase_requerida, clase_requerida_id'
         ),
 
       supabase
@@ -721,7 +722,7 @@ export const PoderesView = ({
               clase={miClase}
               perfil={perfil}
               theme={theme}
-              poderesHito={catalogo.filter((p) => p.clase_requerida === miClase.nombre)}
+              poderesHito={catalogo.filter((p) => p.clase_requerida_id === miClase.id)}
             />
           );
         })()}
@@ -1102,7 +1103,7 @@ export const PoderesView = ({
       {claseModal && (
         <ClaseModal
           clase={claseModal}
-          poderesHito={catalogo.filter((p) => p.clase_requerida === claseModal.nombre)}
+          poderesHito={catalogo.filter((p) => p.clase_requerida_id === claseModal.id)}
           theme={theme}
           eligiendo={eligiendoClase}
           onCancelar={() => { setClaseModal(null); setErrorClase(null); }}
