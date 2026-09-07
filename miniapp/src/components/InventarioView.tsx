@@ -58,6 +58,7 @@ interface ContenidoBolsaItem {
   descripcion: string | null;
   icono: string | null;
   rareza: Rareza | null;
+  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number } | null;
   cantidad: number;
   retirado: boolean;
   vendible: boolean;
@@ -131,6 +132,19 @@ const TITULO_TIER_BOLSA: Record<TierBolsa, string> = {
   grande: 'Bolsa grande',
   epica: 'Bolsa épica',
 };
+
+// Color de identidad FIJO por tier de bolsa (no por la rareza de lo que
+// tenga adentro): así se sabe qué tan buena es de un vistazo sin abrirla.
+const TIER_COLOR_BOLSA: Record<TierBolsa, string> = {
+  pequena: '#f2f2f2',
+  media: '#3fd15c',
+  grande: '#2e93f0',
+  epica: '#ff9a2e',
+};
+
+// Slot combinado de la sección Consumibles: una bolsa activa ocupa un hueco
+// propio ahí mismo, igual que un ítem — no tiene sección aparte ni se acumula.
+type SlotUsable = { kind: 'bolsa'; bolsa: BolsaRow } | { kind: 'item'; item: ItemRow };
 
 const NOMBRE_STAT: Record<string, string> = {
   ataque_fisico: 'Ataque físico',
@@ -453,59 +467,25 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
 
         {/* ---- Bolsa (scrolleable) ---- */}
         <div style={{ maxHeight: 'calc(100vh - 340px)', overflowY: 'auto', paddingBottom: '0.5rem' }}>
-          {bolsas.length > 0 && (
-            <div className="mb-3">
-              <div
-                className="d-flex align-items-center mb-2"
-                style={{ color: theme.accent, fontSize: '0.8rem', gap: '0.4rem' }}
-              >
-                <i className="bi bi-box-fill"></i>
-                <span>Bolsas</span>
-                <span style={{ marginLeft: 'auto', color: theme.text }}>{bolsas.length}</span>
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(6, 1fr)',
-                  gap: '0.4rem',
-                }}
-              >
-                {bolsas.map((b) => {
-                  const borde = b.rareza_maxima ? COLOR_RAREZA[b.rareza_maxima] : `${theme.text}50`;
-                  return (
-                    <button
-                      key={b.bolsa_id}
-                      onClick={() => abrirBolsa(b)}
-                      title={TITULO_TIER_BOLSA[b.tier]}
-                      style={{
-                        position: 'relative',
-                        aspectRatio: '1 / 1',
-                        borderRadius: '6px',
-                        border: `2px solid ${borde}`,
-                        backgroundColor: theme.cardBg,
-                        color: borde,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {/* Ícono representa el estado, no hace falta rótulo: box-fill
-                          (nunca abierta) vs dropbox (ya abierta al menos una vez). */}
-                      <i className={`bi ${b.abierta ? 'bi-dropbox' : 'bi-box-fill'}`} style={{ fontSize: '1.2rem' }}></i>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {secciones.map((tipo) => {
-            const objetos = seccion(tipo);
+            const objetosItem = seccion(tipo);
             const capacidad = CAPACIDAD[tipo];
             const columnas = COLUMNAS_POR_SECCION[tipo];
-            const slots = Array.from({ length: capacidad }, (_, i) => objetos[i] ?? null);
+
+            // Las bolsas comparten hueco con los consumibles: cada una ocupa
+            // un slot propio, no se acumulan entre sí ni con los ítems.
+            const slotsCombinados: SlotUsable[] =
+              tipo === 'usable'
+                ? [
+                    ...bolsas.map((b) => ({ kind: 'bolsa' as const, bolsa: b })),
+                    ...objetosItem.map((it) => ({ kind: 'item' as const, item: it })),
+                  ]
+                : [];
+            const ocupados = tipo === 'usable' ? slotsCombinados.length : objetosItem.length;
+            const slots =
+              tipo === 'usable'
+                ? Array.from({ length: capacidad }, (_, i) => slotsCombinados[i] ?? null)
+                : Array.from({ length: capacidad }, (_, i) => objetosItem[i] ?? null);
 
             return (
               <div key={tipo} className="mb-3">
@@ -516,7 +496,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                   <i className={`bi ${ICONO_SECCION[tipo]}`}></i>
                   <span>{TITULO_SECCION[tipo]}</span>
                   <span style={{ marginLeft: 'auto', color: theme.text }}>
-                    {objetos.length}/{capacidad}
+                    {ocupados}/{capacidad}
                   </span>
                 </div>
                 <div
@@ -527,8 +507,38 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                     gap: '0.4rem',
                   }}
                 >
-                  {slots.map((it, i) => {
-                    const borde = it?.rareza ? COLOR_RAREZA[it.rareza] : `${theme.text}50`;
+                  {slots.map((slot, i) => {
+                    // Slot de bolsa: color e ícono fijos por tier (no por la
+                    // rareza de lo que tenga adentro), para reconocerla sin abrirla.
+                    if (tipo === 'usable' && (slot as SlotUsable | null)?.kind === 'bolsa') {
+                      const b = (slot as Extract<SlotUsable, { kind: 'bolsa' }>).bolsa;
+                      const borde = TIER_COLOR_BOLSA[b.tier];
+                      return (
+                        <button
+                          key={`bolsa-${b.bolsa_id}`}
+                          onClick={() => abrirBolsa(b)}
+                          title={TITULO_TIER_BOLSA[b.tier]}
+                          style={{
+                            position: 'relative',
+                            aspectRatio: '1 / 1',
+                            borderRadius: '6px',
+                            border: `2px solid ${borde}`,
+                            backgroundColor: theme.cardBg,
+                            color: borde,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <i className={`bi ${b.abierta ? 'bi-dropbox' : 'bi-box-fill'}`} style={{ fontSize: '1.2rem' }}></i>
+                        </button>
+                      );
+                    }
+
+                    const it = tipo === 'usable' ? (slot as Extract<SlotUsable, { kind: 'item' }> | null)?.item ?? null : (slot as ItemRow | null);
+                    const borde = it?.rareza ? COLOR_RAREZA[it.rareza as Rareza] : `${theme.text}50`;
                     return (
                       <button
                         key={it ? it.character_item_id : `vacio-${tipo}-${i}`}
@@ -783,7 +793,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
               display: 'flex',
               flexDirection: 'column',
               backgroundColor: theme.cardBg,
-              border: `2px solid ${bolsaAbierta.rareza_maxima ? COLOR_RAREZA[bolsaAbierta.rareza_maxima] : theme.text + '50'}`,
+              border: `2px solid ${TIER_COLOR_BOLSA[bolsaAbierta.tier]}`,
               borderRadius: '8px',
               padding: '1rem',
               fontFamily: 'var(--font-body)',
@@ -867,10 +877,33 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                         )}
                       </button>
 
-                      {expandido && it.tipo === 'item' && it.descripcion && (
-                        <p style={{ padding: '0 0.2rem 0.4rem 1.8rem', fontSize: '0.85rem', opacity: 0.85 }}>
-                          {it.descripcion}
-                        </p>
+                      {expandido && it.tipo === 'item' && (
+                        <div style={{ padding: '0 0.2rem 0.4rem 1.8rem', fontSize: '0.85rem' }}>
+                          {(() => {
+                            const entradas = Object.entries(it.efecto?.stats ?? {});
+                            if (entradas.length === 0 && !it.efecto?.pasiva && !it.efecto?.duracion_minutos && !it.efecto?.duracion_turnos) {
+                              return <div style={{ opacity: 0.7 }}>Sin efecto asociado.</div>;
+                            }
+                            return (
+                              <>
+                                {entradas.map(([k, v]) => (
+                                  <div key={k} style={{ color: theme.accent }}>
+                                    {v >= 0 ? '+' : ''}{v} {nombreStat(k)}
+                                  </div>
+                                ))}
+                                {it.efecto?.pasiva && <div>Pasiva: {it.efecto.pasiva}</div>}
+                                {!!it.efecto?.duracion_minutos && (
+                                  <div style={{ opacity: 0.8 }}>Duración: {it.efecto.duracion_minutos} min reales</div>
+                                )}
+                                {!!it.efecto?.duracion_turnos && (
+                                  <div style={{ opacity: 0.8 }}>
+                                    Duración: {it.efecto.duracion_turnos} turno{it.efecto.duracion_turnos > 1 ? 's' : ''}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       )}
 
                       <div style={{ padding: '0 0.2rem 0.6rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
