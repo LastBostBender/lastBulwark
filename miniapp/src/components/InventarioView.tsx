@@ -39,6 +39,31 @@ interface ItemRow {
   contexto_uso: 'descanso' | 'combate';
 }
 
+type TierBolsa = 'pequena' | 'media' | 'grande' | 'epica';
+
+interface BolsaRow {
+  bolsa_id: number;
+  tier: TierBolsa;
+  abierta: boolean;
+  creado_en: string;
+  expira_en: string;
+  rareza_maxima: Rareza | null;
+}
+
+interface ContenidoBolsaItem {
+  contenido_id: number;
+  tipo: 'oro' | 'item';
+  item_id: number | null;
+  nombre: string;
+  descripcion: string | null;
+  icono: string | null;
+  rareza: Rareza | null;
+  cantidad: number;
+  retirado: boolean;
+  vendible: boolean;
+  precio_venta_oro: number | null;
+}
+
 const CAPACIDAD: Record<ItemTipo, number> = {
   equipamiento: 12,
   usable: 24,
@@ -100,6 +125,13 @@ const TITULO_SECCION: Record<ItemTipo, string> = {
   chatarra: 'Chatarra',
 };
 
+const TITULO_TIER_BOLSA: Record<TierBolsa, string> = {
+  pequena: 'Bolsa pequeña',
+  media: 'Bolsa mediana',
+  grande: 'Bolsa grande',
+  epica: 'Bolsa épica',
+};
+
 const NOMBRE_STAT: Record<string, string> = {
   ataque_fisico: 'Ataque físico',
   ataque_magico: 'Ataque mágico',
@@ -142,12 +174,29 @@ const MOTIVO_MENSAJE: Record<string, string> = {
   buff_ya_activo: 'Ya tienes ese efecto activo. Espera a que termine.',
 };
 
+const MOTIVO_MENSAJE_BOLSA: Record<string, string> = {
+  bolsa_no_encontrada: 'Esa bolsa ya no está disponible.',
+  bolsa_expirada: 'Esa bolsa expiró.',
+  slot_no_encontrado: 'Ese objeto ya no está en la bolsa.',
+  ya_retirado: 'Ya se resolvió ese objeto.',
+  no_vendible: 'Ese objeto no se puede vender.',
+  bolsa_llena: 'No hay espacio en tu inventario para eso.',
+};
+
 export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState<ItemRow | null>(null);
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  const [bolsas, setBolsas] = useState<BolsaRow[]>([]);
+  const [bolsaAbierta, setBolsaAbierta] = useState<BolsaRow | null>(null);
+  const [contenidoBolsa, setContenidoBolsa] = useState<ContenidoBolsaItem[] | null>(null);
+  const [cargandoContenidoBolsa, setCargandoContenidoBolsa] = useState(false);
+  const [slotExpandido, setSlotExpandido] = useState<number | null>(null);
+  const [procesandoBolsa, setProcesandoBolsa] = useState(false);
+  const [mensajeBolsa, setMensajeBolsa] = useState<string | null>(null);
 
   const theme = getTheme(perfil.zona);
 
@@ -162,9 +211,19 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
     setCargando(false);
   }, [perfil.telegram_id]);
 
+  const cargarBolsas = useCallback(async () => {
+    const { data, error } = await supabase.rpc('bolsa_listar_activas', { p_telegram_id: perfil.telegram_id });
+    if (error) {
+      console.error('Error cargando bolsas:', error);
+      return;
+    }
+    setBolsas((data ?? []) as BolsaRow[]);
+  }, [perfil.telegram_id]);
+
   useEffect(() => {
     cargarInventario();
-  }, [cargarInventario]);
+    cargarBolsas();
+  }, [cargarInventario, cargarBolsas]);
 
   const equipados: Partial<Record<SlotEquipo, ItemRow>> = {};
   for (const it of items) {
@@ -177,6 +236,7 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
   const abrirItem = (it: ItemRow) => {
     setMensaje(null);
     setSeleccionado(it);
+    setBolsaAbierta(null);
   };
 
   const cerrarModal = () => {
@@ -212,6 +272,98 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
     // Eliminar y usar (consumido) cierran el modal; equipar/desequipar lo mantienen abierto
     // pero con el estado ya invertido, así que también se cierra para evitar mostrar datos viejos.
     setSeleccionado(null);
+    await cargarInventario();
+  };
+
+  const abrirBolsa = async (b: BolsaRow) => {
+    setSeleccionado(null);
+    setMensajeBolsa(null);
+    setSlotExpandido(null);
+    setBolsaAbierta(b);
+    setCargandoContenidoBolsa(true);
+    const { data, error } = await supabase.rpc('bolsa_obtener_contenido', {
+      p_telegram_id: perfil.telegram_id,
+      p_bolsa_id: b.bolsa_id,
+    });
+    setCargandoContenidoBolsa(false);
+    if (error || !data?.ok) {
+      console.error('Error abriendo bolsa:', error || data);
+      setMensajeBolsa('No se pudo abrir la bolsa.');
+      setContenidoBolsa([]);
+      return;
+    }
+    setContenidoBolsa(((data.contenido ?? []) as ContenidoBolsaItem[]).filter((c) => !c.retirado));
+    // Abrir la bolsa la marca 'abierta' en el backend (ícono box-fill -> dropbox);
+    // se refresca la grilla para reflejarlo.
+    cargarBolsas();
+  };
+
+  const cerrarBolsa = () => {
+    if (procesandoBolsa) return;
+    setBolsaAbierta(null);
+    setContenidoBolsa(null);
+    setMensajeBolsa(null);
+  };
+
+  const ejecutarAccionBolsa = async (
+    fn: 'bolsa_retirar_slot' | 'bolsa_vender_slot' | 'bolsa_descartar_slot',
+    contenidoId: number
+  ) => {
+    if (!bolsaAbierta || procesandoBolsa) return;
+    setProcesandoBolsa(true);
+    setMensajeBolsa(null);
+    const { data, error } = await supabase.rpc(fn, {
+      p_telegram_id: perfil.telegram_id,
+      p_bolsa_id: bolsaAbierta.bolsa_id,
+      p_contenido_id: contenidoId,
+    });
+    setProcesandoBolsa(false);
+
+    if (error || !data?.ok) {
+      console.error(`Error en ${fn}:`, error || data);
+      setMensajeBolsa(MOTIVO_MENSAJE_BOLSA[data?.motivo] ?? 'No se pudo procesar ese objeto.');
+      return;
+    }
+
+    if (data.bolsa_vacia) {
+      cerrarBolsa();
+      cargarBolsas();
+    } else {
+      setContenidoBolsa((prev) => (prev ?? []).filter((c) => c.contenido_id !== contenidoId));
+      setSlotExpandido(null);
+      cargarBolsas();
+    }
+    // Puede haber cambiado el inventario (objeto añadido) o el oro (vendido/retirado).
+    await cargarInventario();
+  };
+
+  const ejecutarAccionBolsaTotal = async (
+    fn: 'bolsa_retirar_todo' | 'bolsa_vender_todo' | 'bolsa_descartar_todo'
+  ) => {
+    if (!bolsaAbierta || procesandoBolsa) return;
+    setProcesandoBolsa(true);
+    setMensajeBolsa(null);
+    const { data, error } = await supabase.rpc(fn, {
+      p_telegram_id: perfil.telegram_id,
+      p_bolsa_id: bolsaAbierta.bolsa_id,
+    });
+    setProcesandoBolsa(false);
+
+    if (error || !data?.ok) {
+      console.error(`Error en ${fn}:`, error || data);
+      setMensajeBolsa(MOTIVO_MENSAJE_BOLSA[data?.motivo] ?? 'No se pudo procesar la bolsa.');
+      return;
+    }
+
+    if (data.bolsa_vacia) {
+      cerrarBolsa();
+      cargarBolsas();
+    } else {
+      // Algo quedó pendiente (ej. "vender todo" salteó lo no vendible, o
+      // "tomar todo" no pudo con algo por falta de espacio): se refresca el
+      // contenido real en vez de asumir que se vació.
+      await abrirBolsa(bolsaAbierta);
+    }
     await cargarInventario();
   };
 
@@ -301,6 +453,54 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
 
         {/* ---- Bolsa (scrolleable) ---- */}
         <div style={{ maxHeight: 'calc(100vh - 340px)', overflowY: 'auto', paddingBottom: '0.5rem' }}>
+          {bolsas.length > 0 && (
+            <div className="mb-3">
+              <div
+                className="d-flex align-items-center mb-2"
+                style={{ color: theme.accent, fontSize: '0.8rem', gap: '0.4rem' }}
+              >
+                <i className="bi bi-box-fill"></i>
+                <span>Bolsas</span>
+                <span style={{ marginLeft: 'auto', color: theme.text }}>{bolsas.length}</span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  gap: '0.4rem',
+                }}
+              >
+                {bolsas.map((b) => {
+                  const borde = b.rareza_maxima ? COLOR_RAREZA[b.rareza_maxima] : `${theme.text}50`;
+                  return (
+                    <button
+                      key={b.bolsa_id}
+                      onClick={() => abrirBolsa(b)}
+                      title={TITULO_TIER_BOLSA[b.tier]}
+                      style={{
+                        position: 'relative',
+                        aspectRatio: '1 / 1',
+                        borderRadius: '6px',
+                        border: `2px solid ${borde}`,
+                        backgroundColor: theme.cardBg,
+                        color: borde,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {/* Ícono representa el estado, no hace falta rótulo: box-fill
+                          (nunca abierta) vs dropbox (ya abierta al menos una vez). */}
+                      <i className={`bi ${b.abierta ? 'bi-dropbox' : 'bi-box-fill'}`} style={{ fontSize: '1.2rem' }}></i>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {secciones.map((tipo) => {
             const objetos = seccion(tipo);
             const capacidad = CAPACIDAD[tipo];
@@ -553,6 +753,201 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                 title="Cerrar"
               >
                 <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Modal de contenido de bolsa ---- */}
+      {bolsaAbierta && (
+        <div
+          onClick={cerrarBolsa}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: theme.cardBg,
+              border: `2px solid ${bolsaAbierta.rareza_maxima ? COLOR_RAREZA[bolsaAbierta.rareza_maxima] : theme.text + '50'}`,
+              borderRadius: '8px',
+              padding: '1rem',
+              fontFamily: 'var(--font-body)',
+              color: theme.text,
+            }}
+          >
+            <div className="d-flex align-items-center justify-content-between mb-2">
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>
+                {TITULO_TIER_BOLSA[bolsaAbierta.tier]}
+              </span>
+              <button
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                style={{ width: '2rem', height: '2rem', border: `1px solid ${theme.text}80`, color: theme.text, backgroundColor: 'transparent' }}
+                disabled={procesandoBolsa}
+                onClick={cerrarBolsa}
+                title="Cerrar"
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <hr style={{ borderColor: `${theme.border}60`, margin: '0 0 0.5rem 0' }} />
+
+            {mensajeBolsa && (
+              <div className="mb-2" style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>
+                {mensajeBolsa}
+              </div>
+            )}
+
+            {/* ---- Scroll interno ---- */}
+            <div style={{ flex: 1, overflowY: 'auto', marginBottom: '0.6rem' }}>
+              {cargandoContenidoBolsa && (
+                <p className="text-center" style={{ opacity: 0.7 }}>Cargando...</p>
+              )}
+              {!cargandoContenidoBolsa && contenidoBolsa && contenidoBolsa.length === 0 && (
+                <p className="text-center" style={{ opacity: 0.7 }}>La bolsa está vacía.</p>
+              )}
+              {!cargandoContenidoBolsa &&
+                contenidoBolsa?.map((it) => {
+                  const expandido = slotExpandido === it.contenido_id;
+                  const colorIcono = it.tipo === 'oro' ? '#e6c34a' : it.rareza ? COLOR_RAREZA[it.rareza] : theme.accent;
+                  return (
+                    <div key={it.contenido_id} style={{ borderBottom: `1px solid ${theme.border}40` }}>
+                      <button
+                        onClick={() =>
+                          it.tipo === 'item' &&
+                          setSlotExpandido((prev) => (prev === it.contenido_id ? null : it.contenido_id))
+                        }
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          width: '100%',
+                          textAlign: 'left',
+                          background: 'transparent',
+                          border: 'none',
+                          padding: '0.4rem 0.2rem',
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.95rem',
+                          color: theme.text,
+                          cursor: it.tipo === 'item' ? 'pointer' : 'default',
+                        }}
+                      >
+                        <i
+                          className={`bi bi-${it.tipo === 'oro' ? 'coin' : it.icono || 'question-circle'}`}
+                          style={{ color: colorIcono, fontSize: '1.1rem' }}
+                        ></i>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div>
+                            {it.nombre}
+                            {it.cantidad > 1 ? ` x${it.cantidad}` : ''}
+                          </div>
+                          {it.rareza && (
+                            <div style={{ fontSize: '0.7rem', color: colorIcono }}>{it.rareza}</div>
+                          )}
+                        </div>
+                        {it.tipo === 'item' && (
+                          <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.text }}>
+                            <i className={`bi bi-${expandido ? 'chevron-up' : 'chevron-right'}`}></i>
+                          </span>
+                        )}
+                      </button>
+
+                      {expandido && it.tipo === 'item' && it.descripcion && (
+                        <p style={{ padding: '0 0.2rem 0.4rem 1.8rem', fontSize: '0.85rem', opacity: 0.85 }}>
+                          {it.descripcion}
+                        </p>
+                      )}
+
+                      <div style={{ padding: '0 0.2rem 0.6rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                          className="btn rounded-circle d-flex align-items-center justify-content-center"
+                          disabled={procesandoBolsa}
+                          onClick={() => ejecutarAccionBolsa('bolsa_retirar_slot', it.contenido_id)}
+                          style={{ width: '1.9rem', height: '1.9rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                          title="Añadir al inventario"
+                        >
+                          <i className="bi bi-bag-heart"></i>
+                        </button>
+
+                        {/* No todos los objetos son vendibles (ej. algunos ítems, o
+                            si en algún momento hay chatarra sin precio_venta_oro) --
+                            en ese caso el botón de vender directamente no aparece. */}
+                        {it.vendible && (
+                          <button
+                            className="btn rounded-circle d-flex align-items-center justify-content-center"
+                            disabled={procesandoBolsa}
+                            onClick={() => ejecutarAccionBolsa('bolsa_vender_slot', it.contenido_id)}
+                            style={{ width: '1.9rem', height: '1.9rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                            title={`Vender por ${(it.precio_venta_oro ?? 0) * it.cantidad} crédito`}
+                          >
+                            <i className="bi bi-cash-coin"></i>
+                          </button>
+                        )}
+
+                        <button
+                          className="btn rounded-circle d-flex align-items-center justify-content-center"
+                          disabled={procesandoBolsa}
+                          onClick={() => ejecutarAccionBolsa('bolsa_descartar_slot', it.contenido_id)}
+                          style={{ width: '1.9rem', height: '1.9rem', border: '1px solid #ff6b6b', color: '#ff6b6b', backgroundColor: 'transparent' }}
+                          title="Descartar"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* ---- Acciones masivas: mismos íconos que arriba, sobre toda la bolsa.
+                Si "tomar todo"/"vender todo" no pueden con algún objeto (sin
+                espacio, no vendible), ese objeto simplemente queda en la bolsa
+                para resolverlo aparte -- nunca aborta el resto. ---- */}
+            <div
+              className="d-flex justify-content-center"
+              style={{ gap: '0.8rem', borderTop: `1px solid ${theme.border}60`, paddingTop: '0.6rem' }}
+            >
+              <button
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                disabled={procesandoBolsa || !contenidoBolsa?.length}
+                onClick={() => ejecutarAccionBolsaTotal('bolsa_retirar_todo')}
+                style={{ width: '2.4rem', height: '2.4rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                title="Tomar todo"
+              >
+                <i className="bi bi-bag-heart"></i>
+              </button>
+              <button
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                disabled={procesandoBolsa || !contenidoBolsa?.length}
+                onClick={() => ejecutarAccionBolsaTotal('bolsa_vender_todo')}
+                style={{ width: '2.4rem', height: '2.4rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                title="Vender todo"
+              >
+                <i className="bi bi-cash-coin"></i>
+              </button>
+              <button
+                className="btn rounded-circle d-flex align-items-center justify-content-center"
+                disabled={procesandoBolsa || !contenidoBolsa?.length}
+                onClick={() => ejecutarAccionBolsaTotal('bolsa_descartar_todo')}
+                style={{ width: '2.4rem', height: '2.4rem', border: '1px solid #ff6b6b', color: '#ff6b6b', backgroundColor: 'transparent' }}
+                title="Descartar todo"
+              >
+                <i className="bi bi-trash"></i>
               </button>
             </div>
           </div>

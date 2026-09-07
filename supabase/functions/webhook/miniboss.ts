@@ -72,11 +72,18 @@ function mensajeResultado(resultado: any): string {
   return `El encuentro contra el mini jefe de nivel ${nivelJefe} terminó (${estado}).`;
 }
 
+const TITULO_TIER_BOLSA: Record<string, string> = {
+  pequena: "Bolsa pequeña",
+  media: "Bolsa mediana",
+  grande: "Bolsa grande",
+  epica: "Bolsa épica",
+};
+
 function mensajeResultadoCombate(resultado: any): string {
   const nivelJefe = resultado?.nivel_jefe;
-  const oroOtorgado = resultado?.oro_otorgado ?? 0;
+  const reciboOtorgado = resultado?.recibo_otorgado ?? 0;
   const participantes = (resultado?.participantes ?? []) as Array<{
-    nombre: string; xp_added?: number; leveled_up?: boolean; new_level?: number;
+    nombre: string; xp_added?: number; leveled_up?: boolean; new_level?: number; bolsa_tier?: string;
   }>;
 
   if (resultado?.estado === "derrota") {
@@ -88,11 +95,12 @@ function mensajeResultadoCombate(resultado: any): string {
   const detalleXp = participantes
     .map((p) => {
       const medalla = p.leveled_up ? ` 🎖 (¡sube a nivel ${p.new_level}!)` : "";
-      return `${p.nombre}${medalla}\n|--- +${p.xp_added ?? 0} XP`;
+      const bolsa = TITULO_TIER_BOLSA[p.bolsa_tier ?? ""] ?? "una bolsa de botín";
+      return `${p.nombre}${medalla}\n|--- +${p.xp_added ?? 0} XP\n|--- ${bolsa} esperando en la Mini App`;
     })
     .join("\n");
 
-  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n\n${detalleXp}\n\n💰 +${oroOtorgado} crédito para cada participante`;
+  return `🏆 ¡Victoria contra el mini jefe de nivel ${nivelJefe}!\n\n${detalleXp}\n\n🎫 +${reciboOtorgado} Recibo de valentía para cada participante`;
 }
 
 export async function handleCronTick() {
