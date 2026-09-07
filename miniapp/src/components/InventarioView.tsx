@@ -866,9 +866,6 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                             {it.nombre}
                             {it.cantidad > 1 ? ` x${it.cantidad}` : ''}
                           </div>
-                          {it.rareza && (
-                            <div style={{ fontSize: '0.7rem', color: colorIcono }}>{it.rareza}</div>
-                          )}
                         </div>
                         {it.tipo === 'item' && (
                           <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: theme.text }}>
@@ -906,42 +903,48 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
                         </div>
                       )}
 
-                      <div style={{ padding: '0 0.2rem 0.6rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button
-                          className="btn rounded-circle d-flex align-items-center justify-content-center"
-                          disabled={procesandoBolsa}
-                          onClick={() => ejecutarAccionBolsa('bolsa_retirar_slot', it.contenido_id)}
-                          style={{ width: '1.9rem', height: '1.9rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
-                          title="Añadir al inventario"
-                        >
-                          <i className="bi bi-bag-heart"></i>
-                        </button>
-
-                        {/* No todos los objetos son vendibles (ej. algunos ítems, o
-                            si en algún momento hay chatarra sin precio_venta_oro) --
-                            en ese caso el botón de vender directamente no aparece. */}
-                        {it.vendible && (
+                      {/* Coger/vender/descartar por ítem: solo aparecen al tocar y
+                          expandir, igual que los stats. El oro no se expande (no
+                          tiene efecto que mostrar), así que mantiene sus botones
+                          siempre visibles. */}
+                      {(it.tipo === 'oro' || expandido) && (
+                        <div style={{ padding: '0 0.2rem 0.6rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <button
                             className="btn rounded-circle d-flex align-items-center justify-content-center"
                             disabled={procesandoBolsa}
-                            onClick={() => ejecutarAccionBolsa('bolsa_vender_slot', it.contenido_id)}
+                            onClick={() => ejecutarAccionBolsa('bolsa_retirar_slot', it.contenido_id)}
                             style={{ width: '1.9rem', height: '1.9rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
-                            title={`Vender por ${(it.precio_venta_oro ?? 0) * it.cantidad} crédito`}
+                            title="Añadir al inventario"
                           >
-                            <i className="bi bi-cash-coin"></i>
+                            <i className="bi bi-bag-heart"></i>
                           </button>
-                        )}
 
-                        <button
-                          className="btn rounded-circle d-flex align-items-center justify-content-center"
-                          disabled={procesandoBolsa}
-                          onClick={() => ejecutarAccionBolsa('bolsa_descartar_slot', it.contenido_id)}
-                          style={{ width: '1.9rem', height: '1.9rem', border: '1px solid #ff6b6b', color: '#ff6b6b', backgroundColor: 'transparent' }}
-                          title="Descartar"
-                        >
-                          <i className="bi bi-trash"></i>
-                        </button>
-                      </div>
+                          {/* No todos los objetos son vendibles (ej. algunos ítems, o
+                              si en algún momento hay chatarra sin precio_venta_oro) --
+                              en ese caso el botón de vender directamente no aparece. */}
+                          {it.vendible && (
+                            <button
+                              className="btn rounded-circle d-flex align-items-center justify-content-center"
+                              disabled={procesandoBolsa}
+                              onClick={() => ejecutarAccionBolsa('bolsa_vender_slot', it.contenido_id)}
+                              style={{ width: '1.9rem', height: '1.9rem', border: `1px solid ${theme.accent}`, color: theme.accent, backgroundColor: 'transparent' }}
+                              title={`Vender por ${(it.precio_venta_oro ?? 0) * it.cantidad} crédito`}
+                            >
+                              <i className="bi bi-cash-coin"></i>
+                            </button>
+                          )}
+
+                          <button
+                            className="btn rounded-circle d-flex align-items-center justify-content-center"
+                            disabled={procesandoBolsa}
+                            onClick={() => ejecutarAccionBolsa('bolsa_descartar_slot', it.contenido_id)}
+                            style={{ width: '1.9rem', height: '1.9rem', border: '1px solid #ff6b6b', color: '#ff6b6b', backgroundColor: 'transparent' }}
+                            title="Descartar"
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
