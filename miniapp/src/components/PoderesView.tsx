@@ -10,6 +10,7 @@ interface PoderesViewProps {
     nivel: number;
     zona: string;
     clase: string;
+    clase_id: number;
     fue: number;
     int: number;
     agi: number;
@@ -547,7 +548,7 @@ export const PoderesView = ({
       supabase
         .from('classes')
         .select('id, nombre, stat_principal, rol, icono, descripcion, bono_stats')
-        .neq('nombre', 'NPC consciente'),
+        .neq('id', 1),
     ]);
 
     if (catalogoRes.data) setCatalogo(catalogoRes.data as Poder[]);
@@ -660,11 +661,11 @@ export const PoderesView = ({
   );
 
   // Mismo umbral que tier 1/2 (suma total), un escalón más (9) + nivel 10.
-  const clasePendiente = perfil.clase === 'NPC consciente' && perfil.nivel >= 10 && puntosAsignados >= 9;
+  const clasePendiente = perfil.clase_id === 1 && perfil.nivel >= 10 && puntosAsignados >= 9;
   const clasesCandidatas = clasePendiente ? clases.filter((c) => dominantes.includes(c.stat_principal)) : [];
 
   const poderesPendientes: Poder[] = catalogo.filter((p) => {
-    if (perfil.clase !== 'NPC consciente') return false;
+    if (perfil.clase_id !== 1) return false;
     if (aprendidos.includes(p.nombre)) return false;
 
     if (tiersYaElegidos.has(p.tier)) return false;
@@ -712,8 +713,8 @@ export const PoderesView = ({
           </p>
         )}
 
-        {!cargando && perfil.clase !== 'NPC consciente' && (() => {
-          const miClase = clases.find((c) => c.nombre === perfil.clase);
+        {!cargando && perfil.clase_id !== 1 && (() => {
+          const miClase = clases.find((c) => c.id === perfil.clase_id);
           if (!miClase) return null;
           return (
             <MiClasePanel

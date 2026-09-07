@@ -222,7 +222,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
       catalogoRes.data.filter((p: any) => aprendidos.includes(p.nombre)).map((p: any) => p.tier)
     );
     const pendientes = catalogoRes.data.filter((p: any) => {
-      if (perfil.clase !== 'NPC consciente') return false;
+      if (perfil.clase_id !== 1) return false;
       if (aprendidos.includes(p.nombre)) return false;
       if (tiersYaElegidos.has(p.tier)) return false;
       if (!dominantes.includes(p.stat_requerido)) return false;
@@ -253,7 +253,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   // Clase pendiente: mismo umbral que tier 1/2 (suma fue+int+agi), un
   // escalón más arriba (9), y solo aplica antes de elegir clase.
   const hayClasePendiente =
-    profile.clase === 'NPC consciente' &&
+    profile.clase_id === 1 &&
     profile.nivel >= 10 &&
     profile.fue + profile.int + profile.agi >= 9;
 
@@ -329,7 +329,7 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
 
   const statPrincipal = clases.find((c) => c.id === profile.clase_id)?.stat_principal ?? null;
   const versatilidad = statPrincipal ? calcularVersatilidad(statPrincipal, { fue: profile.fue, int: profile.int, agi: profile.agi }) : 0;
-  const mostrarVersatilidad = profile.nivel >= 5 && profile.clase !== 'NPC consciente';
+  const mostrarVersatilidad = profile.nivel >= 5 && profile.clase_id !== 1;
 
   const psPorcentaje = Math.min(100, (psActual / psMax) * 100);
   const pmPorcentaje = Math.min(100, (pmActual / pmMax) * 100);
