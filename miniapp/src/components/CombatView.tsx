@@ -99,15 +99,18 @@ const STATS_EFECTO_VISIBLES = [
 
 // Ícono por stat (para buffs/debuffs de característica) y por categoría
 // (daño físico/mágico, sanación, amenaza/sexapil, expiración de efecto).
+// Mismo set que ProfileView.tsx usa en la ficha de personaje, para que un
+// jugador reconozca el ícono de "Escape" o "Crítico" en los dos lugares.
 const ICONO_STAT: Record<string, string> = {
-  ataque_fisico: 'hammer',
+  ataque_fisico: 'emoji-angry',
   ataque_magico: 'magic',
   defensa_fisica: 'shield',
-  defensa_magica: 'shield-shaded',
+  defensa_magica: 'shield-exclamation',
   precision_stat: 'bullseye',
-  escape: 'wind',
-  velocidad: 'lightning-charge',
-  critico: 'stars',
+  escape: 'leaf',
+  velocidad: 'speedometer',
+  critico: 'arrow-through-heart',
+  suerte: 'dice-4',
 };
 
 const ICONO_CURACION = 'bandaid';
@@ -1820,11 +1823,16 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
                 {chipRamas.length > 0 && (
                   <p
                     className="mb-0 ps-3 d-flex flex-wrap align-items-center"
-                    style={{ opacity: 0.85, gap: '8px' }}
+                    style={{ opacity: 0.85, gap: '4px' }}
                   >
                     <span className="text-secondary">|-</span>
-                    {chipRamas.map((rama) => (
-                      <ChipEfecto key={rama.id} m={rama.metadata!} />
+                    {chipRamas.map((rama, i) => (
+                      <span key={rama.id} className="d-flex align-items-center" style={{ gap: '4px' }}>
+                        <ChipEfecto m={rama.metadata!} />
+                        {i < chipRamas.length - 1 && (
+                          <span className="text-secondary">,</span>
+                        )}
+                      </span>
                     ))}
                   </p>
                 )}
