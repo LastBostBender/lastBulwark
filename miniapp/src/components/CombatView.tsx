@@ -49,6 +49,15 @@ interface Combatiente {
   dano_recibido: number;
 }
 
+interface LogMetadata {
+  cat?: 'dano' | 'curacion' | 'buff' | 'debuff' | 'amenaza' | 'expira';
+  valor?: number;
+  stat?: string;
+  pct?: boolean;
+  escala_por?: string | null;
+  dot_hot?: boolean;
+}
+
 interface LogEntry {
   id: number;
   turno: number;
@@ -57,11 +66,136 @@ interface LogEntry {
   padre_id: number | null;
   combatiente_id: number | null;
   es_critico: boolean;
+  metadata: LogMetadata | null;
 }
 
 interface Grupo {
   raiz: LogEntry;
   ramas: LogEntry[];
+}
+
+// Fila de combat_efectos_activos que representa un buff/debuff con estadística
+// visible (no ps_actual/pm_actual — esos tickean solo en el log; no
+// amenaza_aoe/combo_marca:* — son mecánica interna, no se muestran).
+interface EfectoActivo {
+  id: number;
+  combatiente_id: number;
+  stat: string;
+  delta_por_turno: number;
+  turnos_restantes: number;
+  origen: string;
+}
+
+const STATS_EFECTO_VISIBLES = [
+  'ataque_fisico',
+  'ataque_magico',
+  'defensa_fisica',
+  'defensa_magica',
+  'precision_stat',
+  'escape',
+  'velocidad',
+  'critico',
+];
+
+// Ícono por stat (para buffs/debuffs de característica) y por categoría
+// (daño físico/mágico, sanación, amenaza/sexapil, expiración de efecto).
+const ICONO_STAT: Record<string, string> = {
+  ataque_fisico: 'hammer',
+  ataque_magico: 'magic',
+  defensa_fisica: 'shield',
+  defensa_magica: 'shield-shaded',
+  precision_stat: 'bullseye',
+  escape: 'wind',
+  velocidad: 'lightning-charge',
+  critico: 'stars',
+};
+
+const ICONO_CURACION = 'bandaid';
+const ICONO_AMENAZA = 'emoji-angry-fill';
+const ICONO_EXPIRA = 'hourglass-split';
+
+const COLOR_POSITIVO = '#4caf50';
+const COLOR_NEGATIVO = '#e05353';
+const COLOR_AMENAZA = '#e0a13a';
+const COLOR_NEUTRO = '#8a8f98';
+
+function iconoDano(escalaPor?: string | null) {
+  return escalaPor === 'ataque_fisico' ? 'hammer' : 'magic';
+}
+
+// Ícono+color+valor de UNA entrada de log con metadata (daño, sanación,
+// buff, debuff, amenaza o expiración). Se usa tanto para la rama principal
+// fusionada a la raíz como para el resto de las ramas de un grupo.
+function ChipEfecto({ m }: { m: LogMetadata }) {
+  if (!m.cat) return null;
+
+  if (m.cat === 'dano') {
+    return (
+      <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
+        <strong>{m.valor}</strong>{' '}
+        <i className={`bi bi-${iconoDano(m.escala_por)}`} />
+      </span>
+    );
+  }
+
+  if (m.cat === 'curacion') {
+    return (
+      <span style={{ color: COLOR_POSITIVO, whiteSpace: 'nowrap' }}>
+        <strong>{m.valor}</strong>{' '}
+        <i className={`bi bi-${ICONO_CURACION}`} />
+      </span>
+    );
+  }
+
+  if (m.cat === 'buff' || m.cat === 'debuff') {
+    const esBuff = m.cat === 'buff';
+    const icono = (m.stat && ICONO_STAT[m.stat]) || 'arrow-up-circle';
+    const signo = esBuff ? '+' : '-';
+    return (
+      <span
+        style={{
+          color: esBuff ? COLOR_POSITIVO : COLOR_NEGATIVO,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <strong>
+          {signo}
+          {m.valor}
+          {m.pct ? '%' : ''}
+        </strong>{' '}
+        <i className={`bi bi-${icono}`} />
+      </span>
+    );
+  }
+
+  if (m.cat === 'amenaza') {
+    return (
+      <span style={{ color: COLOR_AMENAZA, whiteSpace: 'nowrap' }}>
+        <i className={`bi bi-${ICONO_AMENAZA}`} />
+      </span>
+    );
+  }
+
+  if (m.cat === 'expira') {
+    const icono = (m.stat && ICONO_STAT[m.stat]) || ICONO_EXPIRA;
+    return (
+      <span
+        style={{
+          color: COLOR_NEUTRO,
+          whiteSpace: 'nowrap',
+          opacity: 0.6,
+        }}
+      >
+        <i className={`bi bi-${icono}`} />
+        <i
+          className="bi bi-x"
+          style={{ marginLeft: '-2px', fontSize: '0.7em' }}
+        />
+      </span>
+    );
+  }
+
+  return null;
 }
 
 function renderDescripcionLog(descripcion: string, esCritico: boolean) {
@@ -203,9 +337,11 @@ function gridBanda(n: number): { gridTemplateColumns: string } {
 const TarjetaCombatiente = ({
   c,
   colorBorde,
+  efectos,
 }: {
   c: Combatiente;
   colorBorde: string;
+  efectos: EfectoActivo[];
 }) => (
   <div
     style={{
@@ -231,6 +367,34 @@ const TarjetaCombatiente = ({
     </span>
     <MiniBarra actual={c.ps_actual} max={c.ps_max} color="#c0392b" />
     <MiniBarra actual={c.pm_actual} max={c.pm_max} color="#2980b9" />
+
+    {efectos.length > 0 && (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '3px',
+          marginTop: '1px',
+        }}
+      >
+        {efectos.map((e) => {
+          const icono = ICONO_STAT[e.stat] ?? 'stars';
+          const esBuff = e.delta_por_turno >= 0;
+          return (
+            <span
+              key={e.id}
+              title={`${e.origen} (${e.turnos_restantes})`}
+              style={{
+                color: esBuff ? COLOR_POSITIVO : COLOR_NEGATIVO,
+                fontSize: '0.65rem',
+              }}
+            >
+              <i className={`bi bi-${icono}`} />
+            </span>
+          );
+        })}
+      </div>
+    )}
   </div>
 );
 
@@ -241,9 +405,11 @@ const TarjetaCombatiente = ({
 const BandaCombate = ({
   combatientes,
   colorBorde,
+  efectosActivos,
 }: {
   combatientes: Combatiente[];
   colorBorde: string;
+  efectosActivos: EfectoActivo[];
 }) => {
   if (combatientes.length === 0) return null;
 
@@ -258,7 +424,14 @@ const BandaCombate = ({
         }}
       >
         {combatientes.map((c) => (
-          <TarjetaCombatiente key={c.id} c={c} colorBorde={colorBorde} />
+          <TarjetaCombatiente
+            key={c.id}
+            c={c}
+            colorBorde={colorBorde}
+            efectos={efectosActivos.filter(
+              (e) => e.combatiente_id === c.id,
+            )}
+          />
         ))}
       </div>
     </div>
@@ -297,6 +470,14 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [combatientes, setCombatientes] = useState<Combatiente[]>([]);
   const [log, setLog] = useState<LogEntry[]>([]);
+  // Efectos activos (buffs/debuffs de característica) para los badges en las
+  // tarjetas — lectura en vivo de combat_efectos_activos, no del log.
+  const [efectosActivos, setEfectosActivos] = useState<EfectoActivo[]>([]);
+  // La tabla combat_efectos_activos no tiene columna sesion_id, así que el
+  // canal realtime no puede filtrar server-side por sesión — este ref le
+  // dice al handler qué ids de combatiente pertenecen a ESTA sesión para
+  // descartar el resto client-side.
+  const idsCombatientesRef = useRef<Set<number>>(new Set());
   const [poderes, setPoderes] = useState<Poder[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
@@ -574,7 +755,7 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
           supabase
   .from('combat_log')
-  .select('*')
+  .select('id, sesion_id, turno, combatiente_id, descripcion, creado_en, padre_id, es_critico, metadata')
   .eq('sesion_id', sesionId)
   .order('creado_en', { ascending: false })
   .limit(50)
@@ -645,6 +826,82 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       clearTimeout(timeoutId);
     };
   }, [sesionId, perfil.telegram_id, intentoCombate]);
+
+  useEffect(() => {
+    idsCombatientesRef.current = new Set(combatientes.map((c) => c.id));
+  }, [combatientes]);
+
+  // --- Carga + suscripción de efectos activos (para los badges) ---
+  useEffect(() => {
+    if (combatientes.length === 0) return;
+
+    let activo = true;
+    const ids = combatientes.map((c) => c.id);
+
+    supabase
+      .from('combat_efectos_activos')
+      .select('id, combatiente_id, stat, delta_por_turno, turnos_restantes, origen')
+      .in('combatiente_id', ids)
+      .in('stat', STATS_EFECTO_VISIBLES)
+      .then(({ data }) => {
+        if (activo && data) setEfectosActivos(data as EfectoActivo[]);
+      });
+
+    return () => {
+      activo = false;
+    };
+    // Solo se refetchea cuando cambia la CANTIDAD de combatientes (aparece/muere
+    // alguien) -- no en cada tick de ps/pm, para no pisar lo que va llegando por
+    // realtime mientras tanto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combatientes.length, sesionId]);
+
+  useEffect(() => {
+    if (!sesionId) return;
+
+    const canal = supabase
+      .channel(`efectos-${sesionId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'combat_efectos_activos' },
+        (payload) => {
+          // combat_efectos_activos tiene REPLICA IDENTITY default: en un
+          // DELETE, payload.old solo trae el id (no combatiente_id/stat),
+          // así que ahí no hay nada que filtrar -- basta con sacarlo del
+          // estado por id, sea o no de esta sesión (si no está, es no-op).
+          if (payload.eventType === 'DELETE') {
+            const idBorrado = (payload.old as { id: number })?.id;
+            if (idBorrado != null) {
+              setEfectosActivos((prev) =>
+                prev.filter((e) => e.id !== idBorrado),
+              );
+            }
+            return;
+          }
+
+          const nueva = payload.new as EfectoActivo;
+          if (
+            !nueva ||
+            !idsCombatientesRef.current.has(nueva.combatiente_id) ||
+            !STATS_EFECTO_VISIBLES.includes(nueva.stat)
+          ) {
+            return;
+          }
+
+          setEfectosActivos((prev) => {
+            const existe = prev.some((e) => e.id === nueva.id);
+            return existe
+              ? prev.map((e) => (e.id === nueva.id ? nueva : e))
+              : [...prev, nueva];
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, [sesionId]);
 
   // --- Suscripción realtime ---
   useEffect(() => {
@@ -1480,7 +1737,11 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
       </header>
 
       {/* Banda enemiga (visual, no apunta) — fuera del contenedor de turnos */}
-      <BandaCombate combatientes={enemigosVivos} colorBorde="#c0392b" />
+      <BandaCombate
+        combatientes={enemigosVivos}
+        colorBorde="#c0392b"
+        efectosActivos={efectosActivos}
+      />
 
       <div className="flex-grow-1 d-flex overflow-hidden">
         {/* Centro: log */}
@@ -1498,41 +1759,98 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
             </p>
           )}
 
-          {gruposVisibles.map(
-            ({ raiz, ramas }) => (
-              <div
-                key={raiz.id}
-                className="mb-2"
-              >
+          {gruposVisibles.map(({ raiz, ramas }) => {
+            // Entradas sin padre pero CON metadata son tics de DOT/HOT o de
+            // sexapil sostenido (combat_tick_efectos no les pone padre_id,
+            // así que llegan como "raíz" aunque no sean una acción nueva) —
+            // se muestran como una fila mínima de ícono, no como sentencia.
+            if (raiz.metadata) {
+              const actor = combatientes.find(
+                (c) => c.id === raiz.combatiente_id,
+              );
+              return (
+                <div
+                  key={raiz.id}
+                  className="mb-1 d-flex align-items-center"
+                  style={{ gap: '5px' }}
+                >
+                  <span className="text-secondary">R{raiz.turno}</span>
+                  <ChipEfecto m={raiz.metadata} />
+                  {actor && (
+                    <span
+                      className="text-secondary"
+                      style={{ fontSize: '0.8em' }}
+                    >
+                      {actor.nombre}
+                    </span>
+                  )}
+                </div>
+              );
+            }
+
+            // El primer efecto directo de daño/sanación (no DOT/HOT) se
+            // fusiona a la línea de la raíz en vez de ir como rama aparte.
+            const idxPrincipal = ramas.findIndex(
+              (r) =>
+                r.metadata &&
+                (r.metadata.cat === 'dano' || r.metadata.cat === 'curacion') &&
+                !r.metadata.dot_hot,
+            );
+            const principal =
+              idxPrincipal === -1 ? null : ramas[idxPrincipal];
+            const resto =
+              idxPrincipal === -1
+                ? ramas
+                : ramas.filter((_, i) => i !== idxPrincipal);
+            const chipRamas = resto.filter((r) => r.metadata);
+            const textoRamas = resto.filter((r) => !r.metadata);
+
+            return (
+              <div key={raiz.id} className="mb-2">
                 <p className="mb-0">
-                  <span className="text-secondary">
-                    R{raiz.turno}
-                  </span>{' '}
+                  <span className="text-secondary">R{raiz.turno}</span>{' '}
                   — {renderDescripcionLog(raiz.descripcion, raiz.es_critico)}
+                  {principal?.metadata && (
+                    <>
+                      : <ChipEfecto m={principal.metadata} />
+                    </>
+                  )}
                 </p>
 
-                {ramas.map((rama) => (
+                {chipRamas.length > 0 && (
+                  <p
+                    className="mb-0 ps-3 d-flex flex-wrap align-items-center"
+                    style={{ opacity: 0.85, gap: '8px' }}
+                  >
+                    <span className="text-secondary">|-</span>
+                    {chipRamas.map((rama) => (
+                      <ChipEfecto key={rama.id} m={rama.metadata!} />
+                    ))}
+                  </p>
+                )}
+
+                {textoRamas.map((rama) => (
                   <p
                     key={rama.id}
                     className="mb-0 ps-3"
-                    style={{
-                      opacity: 0.85,
-                    }}
+                    style={{ opacity: 0.85 }}
                   >
-                    <span className="text-secondary">
-                      |-
-                    </span>{' '}
+                    <span className="text-secondary">|-</span>{' '}
                     {renderDescripcionLog(rama.descripcion, rama.es_critico)}
                   </p>
                 ))}
               </div>
-            ),
-          )}
+            );
+          })}
         </div>
       </div>
 
       {/* Banda propia (visual, no apunta) */}
-      <BandaCombate combatientes={aliadosVivos} colorBorde="#4caf50" />
+      <BandaCombate
+        combatientes={aliadosVivos}
+        colorBorde="#4caf50"
+        efectosActivos={efectosActivos}
+      />
 
       {/* Aviso visible cuando el backend rechazó el último clic */}
       {errorAccion && (
