@@ -109,7 +109,7 @@ function ChipEfecto({ m }: { m: LogMetadata }) {
   if (m.cat === 'dano') {
     return (
       <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
-        <strong>{m.valor}</strong>{' '}
+        <strong>-{m.valor}</strong>{' '}
         <i className={`bi bi-${iconoDano(m.escala_por)}`} />
       </span>
     );
@@ -118,7 +118,7 @@ function ChipEfecto({ m }: { m: LogMetadata }) {
   if (m.cat === 'curacion') {
     return (
       <span style={{ color: COLOR_POSITIVO, whiteSpace: 'nowrap' }}>
-        <strong>{m.valor}</strong>{' '}
+        <strong>+{m.valor}</strong>{' '}
         <i className={`bi bi-${ICONO_CURACION}`} />
       </span>
     );
