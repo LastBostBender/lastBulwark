@@ -1604,21 +1604,35 @@ export const CombatView = ({
           // Esto cubre especialmente efectos automáticos cuyo
           // combatiente_id representa al receptor del efecto y no
           // al actor que ejecutó la acción.
-          const acciones =
-            accionesPorTurno.get(
-              entrada.turno,
-            );
-
+          //
+          // 'expira' queda afuera de esta regla: el combatiente_id
+          // de una expiración SIEMPRE es el dueño real del stat que
+          // cambia (a quién le termina el buff/debuff), nunca un
+          // sustituto. Adivinar por "única acción del turno" puede
+          // colgar la expiración de la acción de OTRO combatiente
+          // que no tiene relación con ese efecto. Si el dueño no
+          // actuó este turno, se prefiere dejarlo como raíz suelta
+          // (con su nombre) antes que asociarlo mal.
           if (
-            acciones &&
-            acciones.length === 1
+            entrada.metadata
+              ?.cat !== 'expira'
           ) {
-            agregarRama(
-              acciones[0].id,
-              entrada,
-            );
+            const acciones =
+              accionesPorTurno.get(
+                entrada.turno,
+              );
 
-            continue;
+            if (
+              acciones &&
+              acciones.length === 1
+            ) {
+              agregarRama(
+                acciones[0].id,
+                entrada,
+              );
+
+              continue;
+            }
           }
 
           // Si hay varias acciones y no podemos determinar
