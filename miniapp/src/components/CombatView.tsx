@@ -56,6 +56,11 @@ interface LogMetadata {
   pct?: boolean;
   escala_por?: string | null;
   dot_hot?: boolean;
+  // Para cat === 'expira': indica si lo que expiró era un buff o un debuff.
+  // Determina el COLOR del chip (buff -> verde, debuff -> rojo),
+  // independientemente del signo de 'valor' (que solo indica si el stat
+  // sube o baja en este instante al retirarse el efecto).
+  origen_cat?: 'buff' | 'debuff';
 }
 
 interface LogEntry {
@@ -113,22 +118,24 @@ function ChipEfecto({ m, esCritico = false }: { m: LogMetadata; esCritico?: bool
   ) : null;
 
   if (m.cat === 'dano') {
-  return (
-    <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
-      {iconoCritico}{iconoCritico && ' '}
-      <strong>-{m.valor}</strong>{' '}
-      {m.dot_hot && <i className="bi bi-heart-pulse-fill" style={{ color: '#888' }} />}
-      {m.dot_hot && ' '}
-      <i className={`bi bi-${iconoDano(m.escala_por)}`} />
-    </span>
-  );
-}
+    return (
+      <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
+        {iconoCritico}{iconoCritico && ' '}
+        <strong>-{m.valor}</strong>{' '}
+        {m.dot_hot && <i className="bi bi-heart-pulse-fill" style={{ color: '#888' }} />}
+        {m.dot_hot && ' '}
+        <i className={`bi bi-${iconoDano(m.escala_por)}`} />
+      </span>
+    );
+  }
 
   if (m.cat === 'curacion') {
     return (
       <span style={{ color: COLOR_POSITIVO, whiteSpace: 'nowrap' }}>
         {iconoCritico}{iconoCritico && ' '}
         <strong>+{m.valor}</strong>{' '}
+        {m.dot_hot && <i className="bi bi-heart-pulse-fill" style={{ color: '#888' }} />}
+        {m.dot_hot && ' '}
         <i className={`bi bi-${ICONO_CURACION}`} />
       </span>
     );
@@ -163,23 +170,25 @@ function ChipEfecto({ m, esCritico = false }: { m: LogMetadata; esCritico?: bool
   }
 
   if (m.cat === 'expira') {
-    // No mostramos texto del tipo "expiró".
-    // El backend ya resuelve el signo:
-    // quitar un buff  -> negativo
-    // quitar un debuff -> positivo
+    // El COLOR depende del ORIGEN del efecto que expira (buff -> verde,
+    // debuff -> rojo), NUNCA del signo de 'valor'. 'valor' solo indica si
+    // el stat sube o baja en este instante al retirarse el efecto (quitar
+    // un buff -> negativo, quitar un debuff -> positivo), pero eso es
+    // independiente de si el jugador debe leerlo como algo bueno o malo
+    // que terminó. El backend manda 'origen_cat' explícitamente para esto.
     const icono = (m.stat && ICONO_STAT[m.stat]) || ICONO_EXPIRA;
     const valor = m.valor ?? 0;
-    const esPositivo = valor >= 0;
+    const esBuff = m.origen_cat === 'buff';
 
     return (
       <span
         style={{
-          color: esPositivo ? COLOR_POSITIVO : COLOR_NEGATIVO,
+          color: esBuff ? COLOR_POSITIVO : COLOR_NEGATIVO,
           whiteSpace: 'nowrap',
         }}
       >
         <strong>
-          {esPositivo ? '+' : ''}
+          {valor >= 0 ? '+' : ''}
           {valor}
           {m.pct ? '%' : ''}
         </strong>{' '}
