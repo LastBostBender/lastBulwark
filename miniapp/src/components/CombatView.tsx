@@ -74,29 +74,6 @@ interface Grupo {
   ramas: LogEntry[];
 }
 
-// Fila de combat_efectos_activos que representa un buff/debuff con estadística
-// visible (no ps_actual/pm_actual — esos tickean solo en el log; no
-// amenaza_aoe/combo_marca:* — son mecánica interna, no se muestran).
-interface EfectoActivo {
-  id: number;
-  combatiente_id: number;
-  stat: string;
-  delta_por_turno: number;
-  turnos_restantes: number;
-  origen: string;
-}
-
-const STATS_EFECTO_VISIBLES = [
-  'ataque_fisico',
-  'ataque_magico',
-  'defensa_fisica',
-  'defensa_magica',
-  'precision_stat',
-  'escape',
-  'velocidad',
-  'critico',
-];
-
 // Ícono por stat (para buffs/debuffs de característica) y por categoría
 // (daño físico/mágico, sanación, amenaza/sexapil, expiración de efecto).
 // Mismo set que ProfileView.tsx usa en la ficha de personaje, para que un
@@ -390,11 +367,9 @@ function gridBanda(
 const TarjetaCombatiente = ({
   c,
   colorBorde,
-  efectos,
 }: {
   c: Combatiente;
   colorBorde: string;
-  efectos: EfectoActivo[];
 }) => (
   <div
     style={{
@@ -430,51 +405,15 @@ const TarjetaCombatiente = ({
       max={c.pm_max}
       color="#2980b9"
     />
-
-    {efectos.length > 0 && (
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '3px',
-          marginTop: '1px',
-        }}
-      >
-        {efectos.map((e) => {
-          const icono =
-            ICONO_STAT[e.stat] ?? 'stars';
-
-          const esBuff =
-            e.delta_por_turno >= 0;
-
-          return (
-            <span
-              key={e.id}
-              title={`${e.origen} (${e.turnos_restantes})`}
-              style={{
-                color: esBuff
-                  ? COLOR_POSITIVO
-                  : COLOR_NEGATIVO,
-                fontSize: '0.65rem',
-              }}
-            >
-              <i className={`bi bi-${icono}`} />
-            </span>
-          );
-        })}
-      </div>
-    )}
   </div>
 );
 
 const BandaCombate = ({
   combatientes,
   colorBorde,
-  efectosActivos,
 }: {
   combatientes: Combatiente[];
   colorBorde: string;
-  efectosActivos: EfectoActivo[];
 }) => {
   if (combatientes.length === 0) {
     return null;
@@ -495,10 +434,6 @@ const BandaCombate = ({
             key={c.id}
             c={c}
             colorBorde={colorBorde}
-            efectos={efectosActivos.filter(
-              (e) =>
-                e.combatiente_id === c.id,
-            )}
           />
         ))}
       </div>
@@ -571,16 +506,6 @@ export const CombatView = ({
     log,
     setLog,
   ] = useState<LogEntry[]>([]);
-
-  // Efectos activos para badges de las tarjetas.
-  const [
-    efectosActivos,
-    setEfectosActivos,
-  ] = useState<EfectoActivo[]>([]);
-
-  // La tabla combat_efectos_activos no tiene columna sesion_id.
-  const idsCombatientesRef =
-    useRef<Set<number>>(new Set());
 
   const [
     poderes,
@@ -1231,159 +1156,6 @@ export const CombatView = ({
     intentoCombate,
   ]);
 
-  useEffect(() => {
-    idsCombatientesRef.current =
-      new Set(
-        combatientes.map(
-          (c) => c.id,
-        ),
-      );
-  }, [combatientes]);
-
-  // --- Carga + suscripción de efectos activos ---
-  useEffect(() => {
-    if (
-      combatientes.length === 0
-    ) {
-      return;
-    }
-
-    let activo = true;
-
-    const ids =
-      combatientes.map(
-        (c) => c.id,
-      );
-
-    supabase
-      .from(
-        'combat_efectos_activos',
-      )
-      .select(
-        'id, combatiente_id, stat, delta_por_turno, turnos_restantes, origen',
-      )
-      .in(
-        'combatiente_id',
-        ids,
-      )
-      .in(
-        'stat',
-        STATS_EFECTO_VISIBLES,
-      )
-      .then(({ data }) => {
-        if (
-          activo &&
-          data
-        ) {
-          setEfectosActivos(
-            data as EfectoActivo[],
-          );
-        }
-      });
-
-    return () => {
-      activo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    combatientes.length,
-    sesionId,
-  ]);
-
-  useEffect(() => {
-    if (!sesionId) {
-      return;
-    }
-
-    const canal = supabase
-      .channel(
-        `efectos-${sesionId}`,
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table:
-            'combat_efectos_activos',
-        },
-        (payload) => {
-          if (
-            payload.eventType ===
-            'DELETE'
-          ) {
-            const idBorrado =
-              (
-                payload.old as {
-                  id: number;
-                }
-              )?.id;
-
-            if (
-              idBorrado != null
-            ) {
-              setEfectosActivos(
-                (prev) =>
-                  prev.filter(
-                    (e) =>
-                      e.id !==
-                      idBorrado,
-                  ),
-              );
-            }
-
-            return;
-          }
-
-          const nueva =
-            payload.new as EfectoActivo;
-
-          if (
-            !nueva ||
-            !idsCombatientesRef.current.has(
-              nueva.combatiente_id,
-            ) ||
-            !STATS_EFECTO_VISIBLES.includes(
-              nueva.stat,
-            )
-          ) {
-            return;
-          }
-
-          setEfectosActivos(
-            (prev) => {
-              const existe =
-                prev.some(
-                  (e) =>
-                    e.id ===
-                    nueva.id,
-                );
-
-              return existe
-                ? prev.map(
-                    (e) =>
-                      e.id ===
-                      nueva.id
-                        ? nueva
-                        : e,
-                  )
-                : [
-                    ...prev,
-                    nueva,
-                  ];
-            },
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(
-        canal,
-      );
-    };
-  }, [sesionId]);
-
   // --- Suscripción realtime ---
   useEffect(() => {
     if (!sesionId) {
@@ -2003,7 +1775,22 @@ export const CombatView = ({
       return;
     }
 
-    // Primero sincronizamos las ramas de grupos ya visibles.
+    // IDs de raíz vigentes en esta pasada.
+    //
+    // Una entrada metadata sin padre (ej. la expiración de un buff) puede
+    // llegar por realtime ANTES que la acción a la que en realidad
+    // pertenece — mientras tanto se muestra como raíz suelta ("evento
+    // automático no asociado"). Cuando después aparece esa acción y la
+    // entrada logra engancharse como rama suya, su id deja de estar en
+    // `grupos` como raíz. Si no la sacamos de `gruposVisibles` y de la
+    // cola, queda duplicada para siempre: suelta arriba y otra vez como
+    // rama más abajo.
+    const raicesActuales = new Set(
+      grupos.map((g) => g.raiz.id),
+    );
+
+    // Primero sincronizamos las ramas de grupos ya visibles y
+    // descartamos los que dejaron de ser raíz.
     //
     // Esto es importante porque realtime puede entregar:
     //
@@ -2015,22 +1802,37 @@ export const CombatView = ({
     // Por eso nunca debemos congelar un grupo con ramas=[].
     setGruposVisibles(
       (prev) =>
-        prev.map(
-          (visible) => {
-            const actualizado =
-              grupos.find(
-                (g) =>
-                  g.raiz.id ===
-                  visible.raiz.id,
-              );
+        prev
+          .map(
+            (visible) => {
+              const actualizado =
+                grupos.find(
+                  (g) =>
+                    g.raiz.id ===
+                    visible.raiz.id,
+                );
 
-            return (
-              actualizado ??
-              visible
-            );
-          },
-        ),
+              return (
+                actualizado ??
+                visible
+              );
+            },
+          )
+          .filter((visible) =>
+            raicesActuales.has(
+              visible.raiz.id,
+            ),
+          ),
     );
+
+    // Lo mismo para lo que está encolado pero todavía no se mostró.
+    colaGruposRef.current =
+      colaGruposRef.current.filter(
+        (g) =>
+          raicesActuales.has(
+            g.raiz.id,
+          ),
+      );
 
     // Nuevos grupos.
     const nuevos =
@@ -3042,9 +2844,6 @@ export const CombatView = ({
           enemigosVivos
         }
         colorBorde="#c0392b"
-        efectosActivos={
-          efectosActivos
-        }
       />
 
       <div className="flex-grow-1 d-flex overflow-hidden">
@@ -3283,9 +3082,6 @@ export const CombatView = ({
           aliadosVivos
         }
         colorBorde="#4caf50"
-        efectosActivos={
-          efectosActivos
-        }
       />
 
       {/* Aviso de rechazo del backend */}
