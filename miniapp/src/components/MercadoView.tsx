@@ -73,10 +73,13 @@ const NOMBRE_STAT: Record<string, string> = {
   ps_max: 'Puntos de salud máx.',
   pm_actual: 'Puntos de maná',
   pm_max: 'Puntos de maná máx.',
+  regen_ps: 'Regeneración de salud',
+  regen_pm: 'Regeneración de maná',
   precision_stat: 'Precisión',
   escape: 'Escape',
   velocidad: 'Velocidad',
   critico: 'Crítico',
+  suerte: 'Suerte',
 };
 const nombreStat = (clave: string) => NOMBRE_STAT[clave] ?? clave.replace(/_/g, ' ');
 
