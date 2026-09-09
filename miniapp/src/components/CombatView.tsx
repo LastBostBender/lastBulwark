@@ -103,12 +103,19 @@ function iconoDano(escalaPor?: string | null) {
 // Ícono+color+valor de UNA entrada de log con metadata (daño, sanación,
 // buff, debuff, amenaza o expiración). Se usa tanto para la rama principal
 // fusionada a la raíz como para el resto de las ramas de un grupo.
-function ChipEfecto({ m }: { m: LogMetadata }) {
+function ChipEfecto({ m, esCritico = false }: { m: LogMetadata; esCritico?: boolean }) {
   if (!m.cat) return null;
+
+  // Ícono de crítico ADELANTE del valor (no reemplaza el ícono de tipo de
+  // daño/curación, que sigue yendo después del número como siempre).
+  const iconoCritico = esCritico ? (
+    <i className="bi bi-arrow-through-heart" style={{ color: '#e63950' }} />
+  ) : null;
 
   if (m.cat === 'dano') {
     return (
       <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
+        {iconoCritico}{iconoCritico && ' '}
         <strong>-{m.valor}</strong>{' '}
         <i className={`bi bi-${iconoDano(m.escala_por)}`} />
       </span>
@@ -118,6 +125,7 @@ function ChipEfecto({ m }: { m: LogMetadata }) {
   if (m.cat === 'curacion') {
     return (
       <span style={{ color: COLOR_POSITIVO, whiteSpace: 'nowrap' }}>
+        {iconoCritico}{iconoCritico && ' '}
         <strong>+{m.valor}</strong>{' '}
         <i className={`bi bi-${ICONO_CURACION}`} />
       </span>
@@ -2904,6 +2912,7 @@ export const CombatView = ({
                       m={
                         raiz.metadata
                       }
+                      esCritico={raiz.es_critico}
                     />
 
                     {actor && (
@@ -2995,6 +3004,7 @@ export const CombatView = ({
                           m={
                             principal.metadata
                           }
+                          esCritico={principal.es_critico}
                         />
                       </>
                     )}
@@ -3032,6 +3042,7 @@ export const CombatView = ({
                               m={
                                 rama.metadata!
                               }
+                              esCritico={rama.es_critico}
                             />
 
                             {i <
