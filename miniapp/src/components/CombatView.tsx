@@ -113,14 +113,16 @@ function ChipEfecto({ m, esCritico = false }: { m: LogMetadata; esCritico?: bool
   ) : null;
 
   if (m.cat === 'dano') {
-    return (
-      <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
-        {iconoCritico}{iconoCritico && ' '}
-        <strong>-{m.valor}</strong>{' '}
-        <i className={`bi bi-${iconoDano(m.escala_por)}`} />
-      </span>
-    );
-  }
+  return (
+    <span style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}>
+      {iconoCritico}{iconoCritico && ' '}
+      <strong>-{m.valor}</strong>{' '}
+      {m.dot_hot && <i className="bi bi-heart-pulse-fill" style={{ color: '#888' }} />}
+      {m.dot_hot && ' '}
+      <i className={`bi bi-${iconoDano(m.escala_por)}`} />
+    </span>
+  );
+}
 
   if (m.cat === 'curacion') {
     return (
