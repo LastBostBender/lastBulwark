@@ -114,13 +114,10 @@ const ICONO_STAT: Record<string, string> = {
 };
 
 const ICONO_CURACION = 'bandaid';
-const ICONO_AMENAZA = 'emoji-angry-fill';
 const ICONO_EXPIRA = 'hourglass-split';
 
 const COLOR_POSITIVO = '#4caf50';
 const COLOR_NEGATIVO = '#e05353';
-const COLOR_AMENAZA = '#e0a13a';
-const COLOR_NEUTRO = '#8a8f98';
 
 function iconoDano(escalaPor?: string | null) {
   return escalaPor === 'ataque_fisico' ? 'hammer' : 'magic';
@@ -172,28 +169,32 @@ function ChipEfecto({ m }: { m: LogMetadata }) {
   }
 
   if (m.cat === 'amenaza') {
-    return (
-      <span style={{ color: COLOR_AMENAZA, whiteSpace: 'nowrap' }}>
-        <i className={`bi bi-${ICONO_AMENAZA}`} />
-      </span>
-    );
+    // Oculto por ahora: el mecanismo de sexapil/amenaza se va a reusar para
+    // otra cosa más adelante, no tiene sentido mostrarlo en el log hoy.
+    return null;
   }
 
   if (m.cat === 'expira') {
+    // Mismo tratamiento visual que buff/debuff (signo + cantidad + color),
+    // no un ícono gris neutro sin información. El signo ya viene resuelto
+    // desde el backend: quitar un buff → negativo (rojo), quitar un
+    // debuff → positivo (verde).
     const icono = (m.stat && ICONO_STAT[m.stat]) || ICONO_EXPIRA;
+    const valor = m.valor ?? 0;
+    const esPositivo = valor >= 0;
     return (
       <span
         style={{
-          color: COLOR_NEUTRO,
+          color: esPositivo ? COLOR_POSITIVO : COLOR_NEGATIVO,
           whiteSpace: 'nowrap',
-          opacity: 0.6,
         }}
       >
+        <strong>
+          {esPositivo ? '+' : ''}
+          {valor}
+          {m.pct ? '%' : ''}
+        </strong>{' '}
         <i className={`bi bi-${icono}`} />
-        <i
-          className="bi bi-x"
-          style={{ marginLeft: '-2px', fontSize: '0.7em' }}
-        />
       </span>
     );
   }
@@ -1002,13 +1003,19 @@ export const CombatView = ({ perfil, onResultadoVisibleChange }: CombatViewProps
 
   // Agrupa el log por acción.
   const grupos = useMemo<Grupo[]>(() => {
-    const raices = log.filter(
+    // La amenaza/sexapil se sigue registrando en la base (la mecánica de
+    // aggro la necesita), pero se oculta del log hasta que se reutilice
+    // para otra cosa. Se filtra acá, antes de agrupar, para que no deje
+    // huecos ni comas sueltas en la lista de chips de una rama.
+    const logVisible = log.filter((entrada) => entrada.metadata?.cat !== 'amenaza');
+
+    const raices = logVisible.filter(
       (entrada) => entrada.padre_id == null,
     );
 
     return raices.map((raiz) => ({
       raiz,
-      ramas: log.filter(
+      ramas: logVisible.filter(
         (entrada) => entrada.padre_id === raiz.id,
       ),
     }));
