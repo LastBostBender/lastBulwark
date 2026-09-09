@@ -1647,6 +1647,14 @@ export const CombatView = ({
       // Solamente se convierten en raíz visual si realmente no
       // existe ninguna acción compatible. No son objetivos ni
       // tarjetas: son simplemente eventos informativos.
+      //
+      // 'expira' es la excepción: NUNCA se muestra suelto. Debe
+      // aparecer siempre en la rama de la acción del propio dueño
+      // del efecto (combatiente_id), aunque esa acción llegue en un
+      // turno posterior. Mientras esa acción no exista todavía en
+      // el log, el evento simplemente no se muestra — se espera en
+      // silencio en vez de aparecer al inicio de la ronda y luego
+      // desaparecer/reubicarse cuando la acción real llega.
       const gruposSinAsociar: LogEntry[] =
         entradas.filter(
           (entrada) =>
@@ -1654,6 +1662,8 @@ export const CombatView = ({
               null &&
             entrada.metadata !=
               null &&
+            entrada.metadata.cat !==
+              'expira' &&
             !Array.from(
               ramasPorRaiz.values(),
             ).some(
