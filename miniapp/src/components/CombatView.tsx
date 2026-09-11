@@ -259,6 +259,9 @@ interface ItemUsable {
   tipo: string;
   contexto_uso: 'descanso' | 'combate';
   cantidad: number;
+  slot_equipo?: string | null;
+  equipado?: boolean;
+  tipo_arma?: 'fisico' | 'magico' | null;
 }
 
 // Réplica en el frontend de combat_costo_mana (SQL): mismo costo base +
@@ -573,6 +576,11 @@ export const CombatView = ({
   const [
     itemsUsables,
     setItemsUsables,
+  ] = useState<ItemUsable[]>([]);
+
+  const [
+    inventarioCompleto,
+    setInventarioCompleto,
   ] = useState<ItemUsable[]>([]);
 
   const [
@@ -1952,6 +1960,23 @@ export const CombatView = ({
         perfil.telegram_id,
     );
 
+  // Arma equipada del jugador local: decide si el golpe básico se pinta
+  // como físico (martillo) o mágico (varita), reflejando lo que ya
+  // resuelve combat_ejecutar_accion en el backend.
+  const armaEquipadaTipo =
+    inventarioCompleto.find(
+      (it) =>
+        it.slot_equipo ===
+          'arma' &&
+        it.equipado,
+    )?.tipo_arma ?? null;
+
+  const iconoGolpeBasico =
+    armaEquipadaTipo ===
+    'magico'
+      ? 'magic'
+      : 'hammer';
+
   const esMiTurno =
     !!sesion &&
     !!miCombatiente &&
@@ -2109,10 +2134,16 @@ export const CombatView = ({
         return;
       }
 
+      const inventario =
+        (data ??
+          []) as ItemUsable[];
+
+      setInventarioCompleto(
+        inventario,
+      );
+
       const usables =
-        (
-          (data ?? []) as ItemUsable[]
-        ).filter(
+        inventario.filter(
           (it) =>
             it.tipo ===
               'usable' &&
@@ -3690,7 +3721,9 @@ export const CombatView = ({
                 }}
                 className="btn btn-outline-light flex-grow-1"
               >
-                <i className="bi bi-hammer" />
+                <i
+                  className={`bi bi-${iconoGolpeBasico}`}
+                />
               </button>
 
               <button
