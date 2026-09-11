@@ -669,9 +669,25 @@ export const CombatView = ({
     }
 
     let activo = true;
+    const timers: ReturnType<
+      typeof setTimeout
+    >[] = [];
+
+    // arena_resolver_finalizados corre aparte (tick externo, no un trigger
+    // de la propia base), así que puede no haber completado elo_delta en
+    // el instante en que el frontend nota que la sesión terminó. El canal
+    // realtime de abajo es la vía principal para enterarse cuando se
+    // complete; estos reintentos son solo una red de seguridad acotada
+    // (3 intentos, backoff corto) por si ese evento no llega a tiempo.
+    // Cada intento es una consulta puntual por sesion_combate_id (indexado)
+    // en el propio cliente, no algo que escale con la cantidad de combates
+    // simultáneos en el servidor.
+    const RETRY_DELAYS_MS = [
+      2000, 5000, 10000,
+    ];
 
     const cargarResultado =
-      async () => {
+      async (): Promise<boolean> => {
         const {
           data: inv,
         } = await supabase
@@ -690,7 +706,7 @@ export const CombatView = ({
           !inv ||
           inv.elo_delta == null
         ) {
-          return;
+          return false;
         }
 
         const soyGanador =
@@ -713,7 +729,7 @@ export const CombatView = ({
           },
         );
 
-        if (!activo) return;
+        if (!activo) return true;
 
         setResultadoArena({
           elo_delta:
@@ -734,9 +750,47 @@ export const CombatView = ({
               ? ranking.cambio
               : null,
         });
+
+        return true;
       };
 
-    cargarResultado();
+    const cancelarReintentos =
+      () => {
+        timers.forEach(
+          clearTimeout,
+        );
+        timers.length = 0;
+      };
+
+    const programarReintentos =
+      () => {
+        RETRY_DELAYS_MS.forEach(
+          (delay) => {
+            timers.push(
+              setTimeout(
+                async () => {
+                  if (!activo)
+                    return;
+                  const exito =
+                    await cargarResultado();
+                  if (exito) {
+                    cancelarReintentos();
+                  }
+                },
+                delay,
+              ),
+            );
+          },
+        );
+      };
+
+    cargarResultado().then(
+      (exito) => {
+        if (!exito) {
+          programarReintentos();
+        }
+      },
+    );
 
     const canal = supabase
       .channel(
@@ -751,12 +805,19 @@ export const CombatView = ({
             'arena_invitaciones',
           filter: `sesion_combate_id=eq.${sesionId}`,
         },
-        () => cargarResultado(),
+        async () => {
+          const exito =
+            await cargarResultado();
+          if (exito) {
+            cancelarReintentos();
+          }
+        },
       )
       .subscribe();
 
     return () => {
       activo = false;
+      cancelarReintentos();
       supabase.removeChannel(
         canal,
       );
