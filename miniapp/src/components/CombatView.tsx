@@ -1149,6 +1149,16 @@ export const CombatView = ({
 
         sesionCargadaIdRef.current =
           sesionId;
+
+        // El ícono del golpe básico depende de armaEquipadaTipo, que se
+        // deriva de inventarioCompleto. Sin esto, ese estado queda vacío
+        // hasta que el jugador abre la mochila manualmente, y el botón
+        // muestra martillo aunque el arma equipada sea mágica.
+        if (
+          esPrimeraCargaDeEstaSesion
+        ) {
+          cargarItemsUsables();
+        }
       } catch (err: any) {
         if (!activo) return;
 
