@@ -241,6 +241,7 @@ interface Poder {
   nombre: string;
   icono: string;
   costo_pm_base: number | null;
+  tipo: string;
   parametros: {
     efectos: Array<{
       trigger: string;
