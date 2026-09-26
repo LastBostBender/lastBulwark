@@ -264,9 +264,13 @@ interface ItemUsable {
   tipo_arma?: 'fisico' | 'magico' | null;
 }
 
-// Réplica en el frontend de combat_costo_mana (SQL): mismo costo base +
-// franjas por nivel. Es solo para mostrar el número antes de tirar el
-// poder — el backend sigue siendo la fuente de verdad.
+// Réplica EXACTA en el frontend de combat_costo_mana (SQL):
+//   round(costo_base * (1 + 4 * (clamp(nivel-1, 0, 49) / 49) ^ 1.7))
+// La versión anterior aproximaba esto con franjas fijas por rango de
+// nivel y se desviaba del valor real del backend a partir de nivel 30
+// (ej. base 4 en nivel 30 daba 9 acá y 11 en el backend). Es solo para
+// mostrar el número antes de tirar el poder — el backend sigue siendo
+// la fuente de verdad y el que realmente cobra el maná.
 function costoManaPoder(
   costoBase: number | null,
   nivel: number,
@@ -275,20 +279,21 @@ function costoManaPoder(
     return null;
   }
 
-  const franja =
-    nivel <= 9
-      ? 0
-      : nivel <= 19
-        ? 1
-        : nivel <= 29
-          ? 3
-          : nivel <= 39
-            ? 5
-            : nivel <= 49
-              ? 9
-              : 14;
+  const nivelClamp =
+    Math.max(
+      0,
+      Math.min(49, nivel - 1),
+    ) / 49;
 
-  return costoBase + franja;
+  return Math.round(
+    costoBase *
+      (1 +
+        4 *
+          Math.pow(
+            nivelClamp,
+            1.7,
+          )),
+  );
 }
 
 type Categoria =
@@ -533,6 +538,17 @@ export const CombatView = ({
     poderes,
     setPoderes,
   ] = useState<Poder[]>([]);
+
+  // IDs de poder (tipo 'aura') actualmente ACTIVOS para mi combatiente,
+  // derivados del marcador combat_efectos_activos.stat = 'aura:<id>'.
+  // Sin esto el botón no puede distinguir "activar" (gasta maná, se
+  // bloquea si no alcanza) de "desactivar" (gratis, siempre disponible).
+  const [
+    aurasActivas,
+    setAurasActivas,
+  ] = useState<Set<number>>(
+    new Set(),
+  );
 
   const [
     cargando,
@@ -1413,6 +1429,106 @@ export const CombatView = ({
       );
     };
   }, [sesionId]);
+
+  // Combatiente propio dentro de esta sesión (se recalcula en cada
+  // render; solo se usa aquí como dependencia estable del efecto de
+  // abajo, no como estado).
+  const miCombatienteId =
+    combatientes.find(
+      (c) =>
+        c.telegram_id ===
+        perfil.telegram_id,
+    )?.id ?? null;
+
+  // --- Estado de auras activas (toggle) ---
+  // combat_efectos_activos no se cargaba ni se escuchaba antes: el botón
+  // de un poder tipo 'aura' no tenía forma de saber si ya estaba
+  // encendido, así que aplicaba siempre el chequeo de maná de
+  // ACTIVACIÓN — incluido al querer apagarlo, cuando desactivar es
+  // gratis. Como el PM baja solo por tener el aura prendida, terminaba
+  // autobloqueando el propio botón de apagado.
+  useEffect(() => {
+    if (!miCombatienteId) {
+      setAurasActivas(
+        new Set(),
+      );
+
+      return;
+    }
+
+    let activo = true;
+
+    const cargarAuras =
+      async () => {
+        const { data } =
+          await supabase
+            .from(
+              'combat_efectos_activos',
+            )
+            .select('stat')
+            .eq(
+              'combatiente_id',
+              miCombatienteId,
+            )
+            .like(
+              'stat',
+              'aura:%',
+            );
+
+        if (!activo) return;
+
+        const ids = new Set(
+          (data ?? [])
+            .map((r: any) =>
+              parseInt(
+                String(
+                  r.stat,
+                ).slice(
+                  'aura:'
+                    .length,
+                ),
+                10,
+              ),
+            )
+            .filter(
+              (n: number) =>
+                !Number.isNaN(
+                  n,
+                ),
+            ),
+        );
+
+        setAurasActivas(ids);
+      };
+
+    cargarAuras();
+
+    const canalAuras = supabase
+      .channel(
+        `auras-${miCombatienteId}`,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table:
+            'combat_efectos_activos',
+          filter: `combatiente_id=eq.${miCombatienteId}`,
+        },
+        () => {
+          cargarAuras();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      activo = false;
+      supabase.removeChannel(
+        canalAuras,
+      );
+    };
+  }, [miCombatienteId]);
 
   useEffect(() => {
     setPoderSeleccionado(
@@ -3659,6 +3775,22 @@ export const CombatView = ({
                     ) <
                       costoMana;
 
+                  // Un aura ya encendida se desactiva GRATIS al
+                  // volver a tocarla (ver combat_ejecutar_accion):
+                  // no debe bloquearse por falta de maná, porque
+                  // justamente quedarse sin PM mientras está activa
+                  // es la razón más común para querer apagarla.
+                  const estaActiva =
+                    poder.tipo ===
+                      'aura' &&
+                    aurasActivas.has(
+                      poder.id,
+                    );
+
+                  const bloqueado =
+                    sinMana &&
+                    !estaActiva;
+
                   return (
                     <button
                       key={
@@ -3666,7 +3798,7 @@ export const CombatView = ({
                       }
                       disabled={
                         enviando ||
-                        sinMana
+                        bloqueado
                       }
                       onClick={() =>
                         tocarPoder(
@@ -3678,13 +3810,43 @@ export const CombatView = ({
                         position:
                           'relative',
                         opacity:
-                          sinMana
+                          bloqueado
                             ? 0.45
                             : 1,
+                        borderColor:
+                          estaActiva
+                            ? '#2980b9'
+                            : undefined,
+                        boxShadow:
+                          estaActiva
+                            ? '0 0 6px #2980b9 inset'
+                            : undefined,
                       }}
                     >
-                      {costoMana !==
-                        null && (
+                      {estaActiva && (
+                        <span
+                          style={{
+                            position:
+                              'absolute',
+                            top:
+                              '3px',
+                            right:
+                              '4px',
+                            fontSize:
+                              '0.65rem',
+                            lineHeight:
+                              1,
+                            color:
+                              '#2980b9',
+                          }}
+                        >
+                          ON
+                        </span>
+                      )}
+
+                      {!estaActiva &&
+                        costoMana !==
+                          null && (
                         <span
                           style={{
                             position:
