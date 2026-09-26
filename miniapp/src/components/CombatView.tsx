@@ -50,7 +50,7 @@ interface Combatiente {
 }
 
 interface LogMetadata {
-  cat?: 'dano' | 'curacion' | 'buff' | 'debuff' | 'amenaza' | 'expira';
+  cat?: 'dano' | 'curacion' | 'buff' | 'debuff' | 'amenaza' | 'expira' | 'aura' | 'reflejo';
   valor?: number;
   stat?: string;
   pct?: boolean;
@@ -61,6 +61,15 @@ interface LogMetadata {
   // independientemente del signo de 'valor' (que solo indica si el stat
   // sube o baja en este instante al retirarse el efecto).
   origen_cat?: 'buff' | 'debuff';
+  // Para cat === 'aura' (tick de mantenimiento o auto-apagado de un poder
+  // tipo aura) y cat === 'reflejo' (daño de vuelta por esquive): ícono
+  // bootstrap del poder y su nombre, para mostrar un chip discreto en vez
+  // de una línea de texto completa repetida cada turno.
+  icono?: string;
+  origen?: string;
+  // Solo en cat === 'aura': distingue el tick normal del auto-apagado por
+  // falta de PM, para superponer una "x" sobre el ícono en ese caso.
+  evento?: 'tick' | 'apagado';
 }
 
 interface LogEntry {
@@ -167,6 +176,59 @@ function ChipEfecto({ m, esCritico = false }: { m: LogMetadata; esCritico?: bool
     // Oculto por ahora: el mecanismo de sexapil/amenaza se va a reusar para
     // otra cosa más adelante, no tiene sentido mostrarlo en el log hoy.
     return null;
+  }
+
+  if (m.cat === 'reflejo') {
+    // Daño de vuelta por esquivar (ej. Retorno cinético). Mismo lenguaje
+    // visual que un daño normal (rojo, -N), pero con el ícono del PODER
+    // que lo causó en vez del ícono genérico de arma, para que se lea
+    // como "esto pasó por tu aura" y no como un golpe más.
+    return (
+      <span
+        style={{ color: COLOR_NEGATIVO, whiteSpace: 'nowrap' }}
+        title={m.origen}
+      >
+        <strong>-{m.valor}</strong>{' '}
+        <i className={`bi bi-${m.icono || 'arrow-return-left'}`} />
+      </span>
+    );
+  }
+
+  if (m.cat === 'aura') {
+    // Tick de mantenimiento o auto-apagado de un poder tipo aura. A
+    // diferencia de un buff/debuff no hay un número que mostrar cada
+    // turno (el PM ya se ve en la barra del combatiente) — es solo un
+    // recordatorio discreto de "esto sigue activo", con el nombre del
+    // poder en el tooltip. El apagado por falta de PM es la MISMA forma
+    // visual con una "x" superpuesta, para distinguirlo sin volver a
+    // escribir una línea de texto completa.
+    const esApagado = m.evento === 'apagado';
+
+    return (
+      <span
+        style={{
+          position: 'relative',
+          display: 'inline-block',
+          color: '#e05353',
+        }}
+        title={m.origen}
+      >
+        <i className={`bi bi-${m.icono || 'lightning-charge-fill'}`} />
+        {esApagado && (
+          <i
+            className="bi bi-x"
+            style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              fontSize: '0.85em',
+              color: '#e05353',
+              WebkitTextStroke: '1px #1a1a1a',
+            }}
+          />
+        )}
+      </span>
+    );
   }
 
   if (m.cat === 'expira') {
