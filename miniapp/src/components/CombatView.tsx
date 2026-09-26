@@ -1199,8 +1199,10 @@ export const CombatView = ({
               .filter(
                 (p: any) =>
                   p &&
-                  p.tipo ===
-                    'activo',
+                  (p.tipo ===
+                    'activo' ||
+                    p.tipo ===
+                      'aura'),
               );
 
           setPoderes(
