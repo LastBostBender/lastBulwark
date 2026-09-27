@@ -3346,7 +3346,7 @@ export const CombatView = ({
                   </p>
 
                   {segmentos.map(
-                    (seg, si) =>
+                    (seg) =>
                       seg.tipo === 'chips' ? (
                         <p
                           key={`chips-${seg.items[0].id}`}
