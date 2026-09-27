@@ -1839,6 +1839,23 @@ export const CombatView = ({
           entrada.metadata !=
             null
         ) {
+          // 'aura' (tick silencioso o auto-apagado de un poder tipo aura)
+          // NUNCA se asocia a ninguna acción por coincidencia de
+          // turno+combatiente. A diferencia de un buff/debuff, no es
+          // consecuencia de "lo que el combatiente hizo este turno": el
+          // apagado por falta de PM puede coincidir con cualquier otra
+          // acción propia (un ataque, un poder) sin tener relación con
+          // ella, y colgarlo ahí confunde ("¿por qué aparece esto bajo mi
+          // ataque?"). Se deja siempre sin asociar para que caiga en
+          // gruposSinAsociar más abajo y se muestre como su propia línea
+          // mínima.
+          if (
+            entrada.metadata.cat ===
+            'aura'
+          ) {
+            continue;
+          }
+
           // Primera preferencia:
           // acción del mismo turno y mismo combatiente.
           const key = `${entrada.turno}:${entrada.combatiente_id ?? 'null'}`;
@@ -3795,22 +3812,20 @@ export const CombatView = ({
                 display:
                   'grid',
                 gap: '6px',
+                // Con 3 poderes usamos el MISMO grid 2x2 de altura fija
+                // que con 4 (en vez de 1 columna x 3 filas, que estiraba
+                // la botonera y rompía la estética fija). El tercer botón
+                // ocupa las dos filas de su columna (ver gridRow abajo).
                 gridTemplateColumns:
-                  poderesDisponibles.length ===
-                  3
+                  poderesDisponibles.length <=
+                  1
                     ? '1fr'
-                    : poderesDisponibles.length <=
-                        1
-                      ? '1fr'
-                      : '1fr 1fr',
+                    : '1fr 1fr',
                 gridTemplateRows:
-                  poderesDisponibles.length ===
-                  3
-                    ? '1fr 1fr 1fr'
-                    : poderesDisponibles.length <=
-                        2
-                      ? '1fr'
-                      : '1fr 1fr',
+                  poderesDisponibles.length <=
+                  2
+                    ? '1fr'
+                    : '1fr 1fr',
               }}
             >
               {poderesDisponibles.length ===
@@ -3824,7 +3839,7 @@ export const CombatView = ({
               )}
 
               {poderesDisponibles.map(
-                (poder) => {
+                (poder, indicePoder) => {
                   const costoMana =
                     costoManaPoder(
                       poder.costo_pm_base,
@@ -3886,6 +3901,16 @@ export const CombatView = ({
                         boxShadow:
                           estaActiva
                             ? '0 0 6px #2980b9 inset'
+                            : undefined,
+                        // Con exactamente 3 poderes, el tercero (única
+                        // columna 2) ocupa las dos filas para llenar el
+                        // grid 2x2 en vez de dejar una celda vacía.
+                        gridRow:
+                          poderesDisponibles.length ===
+                            3 &&
+                          indicePoder ===
+                            2
+                            ? '1 / 3'
                             : undefined,
                       }}
                     >
