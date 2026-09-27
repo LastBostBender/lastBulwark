@@ -3285,17 +3285,34 @@ export const CombatView = ({
                         idxPrincipal,
                     );
 
-              const chipRamas =
-                resto.filter(
-                  (r) =>
-                    r.metadata,
-                );
+              // Antes esto se partía en dos baldes fijos (todos los chips,
+              // luego todos los textos), así que un chip que ocurrió
+              // DESPUÉS de un texto igual se pintaba primero (ej. el daño
+              // de vuelta apareciendo antes que "bloqueó el ataque", que es
+              // lo que lo causó). 'resto' ya viene en orden cronológico
+              // real (mismo orden de 'entradas'), así que en vez de
+              // partirlo agrupamos solo los chips CONSECUTIVOS entre sí
+              // (para no perder la compactación de varios chips seguidos
+              // en una sola línea) y cada texto conserva su posición.
+              type Segmento =
+                | { tipo: 'chips'; items: LogEntry[] }
+                | { tipo: 'texto'; item: LogEntry };
 
-              const textoRamas =
-                resto.filter(
-                  (r) =>
-                    !r.metadata,
-                );
+              const segmentos: Segmento[] = [];
+
+              for (const rama of resto) {
+                if (rama.metadata) {
+                  const ultimo =
+                    segmentos[segmentos.length - 1];
+                  if (ultimo && ultimo.tipo === 'chips') {
+                    ultimo.items.push(rama);
+                  } else {
+                    segmentos.push({ tipo: 'chips', items: [rama] });
+                  }
+                } else {
+                  segmentos.push({ tipo: 'texto', item: rama });
+                }
+              }
 
               return (
                 <div
@@ -3328,75 +3345,61 @@ export const CombatView = ({
                     )}
                   </p>
 
-                  {chipRamas.length >
-                    0 && (
-                    <p
-                      className="mb-0 ps-3 d-flex flex-wrap align-items-center"
-                      style={{
-                        opacity:
-                          0.85,
-                        gap: '4px',
-                      }}
-                    >
-                      <span className="text-secondary">
-                        └─
-                      </span>
-
-                      {chipRamas.map(
-                        (
-                          rama,
-                          i,
-                        ) => (
-                          <span
-                            key={
-                              rama.id
-                            }
-                            className="d-flex align-items-center"
-                            style={{
-                              gap: '4px',
-                            }}
-                          >
-                            <ChipEfecto
-                              m={
-                                rama.metadata!
-                              }
-                              esCritico={rama.es_critico}
-                            />
-
-                            {i <
-                              chipRamas.length -
-                                1 && (
-                              <span className="text-secondary">
-                                ,
-                              </span>
-                            )}
+                  {segmentos.map(
+                    (seg, si) =>
+                      seg.tipo === 'chips' ? (
+                        <p
+                          key={`chips-${seg.items[0].id}`}
+                          className="mb-0 ps-3 d-flex flex-wrap align-items-center"
+                          style={{
+                            opacity: 0.85,
+                            gap: '4px',
+                          }}
+                        >
+                          <span className="text-secondary">
+                            └─
                           </span>
-                        ),
-                      )}
-                    </p>
-                  )}
 
-                  {textoRamas.map(
-                    (rama) => (
-                      <p
-                        key={
-                          rama.id
-                        }
-                        className="mb-0 ps-3"
-                        style={{
-                          opacity:
-                            0.85,
-                        }}
-                      >
-                        <span className="text-secondary">
-                          └─
-                        </span>{' '}
-                        {renderDescripcionLog(
-                          rama.descripcion,
-                          rama.es_critico,
-                        )}
-                      </p>
-                    ),
+                          {seg.items.map(
+                            (rama, i) => (
+                              <span
+                                key={rama.id}
+                                className="d-flex align-items-center"
+                                style={{
+                                  gap: '4px',
+                                }}
+                              >
+                                <ChipEfecto
+                                  m={rama.metadata!}
+                                  esCritico={rama.es_critico}
+                                />
+
+                                {i < seg.items.length - 1 && (
+                                  <span className="text-secondary">
+                                    ,
+                                  </span>
+                                )}
+                              </span>
+                            ),
+                          )}
+                        </p>
+                      ) : (
+                        <p
+                          key={`texto-${seg.item.id}`}
+                          className="mb-0 ps-3"
+                          style={{
+                            opacity: 0.85,
+                          }}
+                        >
+                          <span className="text-secondary">
+                            └─
+                          </span>{' '}
+                          {renderDescripcionLog(
+                            seg.item.descripcion,
+                            seg.item.es_critico,
+                          )}
+                        </p>
+                      ),
                   )}
                 </div>
               );
