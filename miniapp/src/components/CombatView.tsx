@@ -1847,8 +1847,8 @@ export const CombatView = ({
           // acción propia (un ataque, un poder) sin tener relación con
           // ella, y colgarlo ahí confunde ("¿por qué aparece esto bajo mi
           // ataque?"). Se deja siempre sin asociar para que caiga en
-          // gruposSinAsociar más abajo y se muestre como su propia línea
-          // mínima.
+          // gruposSinAsociar más abajo, donde también se filtra: hoy el
+          // evento 'aura' no se muestra en el texto de combate.
           if (
             entrada.metadata.cat ===
             'aura'
@@ -1941,6 +1941,13 @@ export const CombatView = ({
               null &&
             entrada.metadata.cat !==
               'expira' &&
+            // 'aura' (apagado por falta de PM) se silencia: nunca se
+            // asocia a una acción (ver arriba) y una línea suelta
+            // "R6 ⚡ Hrakkar" no aporta nada al texto de combate; el
+            // botón del poder ya indica si sigue ON. El evento sigue
+            // guardado en combat_log por si otro consumidor lo necesita.
+            entrada.metadata.cat !==
+              'aura' &&
             !Array.from(
               ramasPorRaiz.values(),
             ).some(
