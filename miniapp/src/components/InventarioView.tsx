@@ -29,7 +29,7 @@ interface ItemRow {
   slot_equipo: SlotEquipo | null;
   descripcion: string;
   icono: string;
-  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number } | null;
+  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number; tipo_valor?: string } | null;
   cantidad: number;
   equipado: boolean;
   power_id: number | null;
@@ -60,7 +60,7 @@ interface ContenidoBolsaItem {
   descripcion: string | null;
   icono: string | null;
   rareza: Rareza | null;
-  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number } | null;
+  efecto: { stats?: Record<string, number>; pasiva?: string | null; duracion_minutos?: number; duracion_turnos?: number; tipo_valor?: string } | null;
   cantidad: number;
   retirado: boolean;
   vendible: boolean;
@@ -669,7 +669,7 @@ export const InventarioView = ({ perfil, onNavigate, onProfileChange }: Inventar
                   <div className="mb-1">
                     {Object.entries(seleccionado.efecto.stats).map(([k, v]) => (
                       <div key={k}>
-                        {nombreStat(k)}: {v > 0 ? `+${v}` : v}
+                        {nombreStat(k)}: {v > 0 ? `+${v}` : v}{seleccionado.efecto?.tipo_valor === 'pct' ? '%' : ''}
                       </div>
                     ))}
                   </div>
@@ -901,7 +901,7 @@ export const InventarioView = ({ perfil, onNavigate, onProfileChange }: Inventar
                               <>
                                 {entradas.map(([k, v]) => (
                                   <div key={k} style={{ color: theme.accent }}>
-                                    {v >= 0 ? '+' : ''}{v} {nombreStat(k)}
+                                    {v >= 0 ? '+' : ''}{v}{it.efecto?.tipo_valor === 'pct' ? '%' : ''} {nombreStat(k)}
                                   </div>
                                 ))}
                                 {it.efecto?.pasiva && <div>Pasiva: {it.efecto.pasiva}</div>}
