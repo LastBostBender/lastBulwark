@@ -12,6 +12,8 @@ interface InventarioViewProps {
     clase: string;
   };
   onNavigate?: (vista: 'perfil' | 'mazmorra' | 'inventario' | 'poderes' | 'mercado') => void;
+  /** Notifica al padre cuando inv_usar actualiza ps/pm del perfil. */
+  onProfileChange?: (patch: Partial<{ ps_actual: number; pm_actual: number; ps_max_efectivo: number; pm_max_efectivo: number }>) => void;
 }
 
 type ItemTipo = 'equipamiento' | 'usable' | 'chatarra';
@@ -200,7 +202,7 @@ const MOTIVO_MENSAJE_BOLSA: Record<string, string> = {
   bolsa_llena: 'No hay espacio en tu inventario para eso.',
 };
 
-export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
+export const InventarioView = ({ perfil, onNavigate, onProfileChange }: InventarioViewProps) => {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState<ItemRow | null>(null);
@@ -284,6 +286,17 @@ export const InventarioView = ({ perfil, onNavigate }: InventarioViewProps) => {
     if (data && data.ok === false) {
       setMensaje(MOTIVO_MENSAJE[data.motivo] ?? 'No se pudo completar la acción.');
       return;
+    }
+
+    // Si inv_usar devolvió un buff con estado de recursos actualizado,
+    // notificamos al padre para que ProfileView refleje ps/pm sin refetch.
+    if (fn === 'inv_usar' && data?.buff === true) {
+      onProfileChange?.({
+        ps_actual:        data.ps_actual,
+        pm_actual:        data.pm_actual,
+        ps_max_efectivo:  data.ps_max_efectivo,
+        pm_max_efectivo:  data.pm_max_efectivo,
+      });
     }
 
     // Eliminar y usar (consumido) cierran el modal; equipar/desequipar lo mantienen abierto
