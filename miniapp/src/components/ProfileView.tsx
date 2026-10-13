@@ -89,6 +89,8 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
   // es lo único que sobrevive a esos refrescos.
   const [bonoMaxBuffs, setBonoMaxBuffs] = useState({ ps_max: 0, pm_max: 0, regen_ps: 0, regen_pm: 0 });
 
+
+
   // stat_principal de cada clase, para calcular Versatilidad (antes era un
   // stub que siempre devolvía null — nunca llegaba a mostrar nada).
   const [clases, setClases] = useState<{ id: number; stat_principal: 'fue' | 'int' | 'agi' }[]>([]);
@@ -111,8 +113,8 @@ export const ProfileView = ({ perfil, onNavigate, onProfileChange }: ProfileView
     if (!data) return;
     const bono = { ps_max: 0, pm_max: 0, regen_ps: 0, regen_pm: 0 };
     for (const fila of data as any[]) {
-      bono.ps_max += Number(fila.stats?.ps_max ?? 0);
-      bono.pm_max += Number(fila.stats?.pm_max ?? 0);
+      bono.ps_max   += Number(fila.stats?.ps_max   ?? 0);
+      bono.pm_max   += Number(fila.stats?.pm_max   ?? 0);
       bono.regen_ps += Number(fila.stats?.regen_ps ?? 0);
       bono.regen_pm += Number(fila.stats?.regen_pm ?? 0);
     }
