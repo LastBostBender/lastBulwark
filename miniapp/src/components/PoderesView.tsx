@@ -54,6 +54,12 @@ interface BuffActivo {
   nombre: string;
   stats: Record<string, number>;
   expira_en: string;
+  /** Efecto original del catálogo. Si tipo_valor === 'pct', los stats son porcentajes. */
+  efecto_original: {
+    stats: Record<string, number>;
+    tipo_valor?: string;
+    duracion_minutos?: number;
+  } | null;
 }
 
 interface Clase {
@@ -484,6 +490,7 @@ const DetalleBuff = ({
   theme: ReturnType<typeof getTheme>;
 }) => {
   const entradas = Object.entries(buff.stats ?? {});
+  const esPct = buff.efecto_original?.tipo_valor === 'pct';
 
   return (
     <div style={{ padding: '0.2rem 0.2rem 0.8rem 1.8rem', fontSize: '0.9rem' }}>
@@ -495,12 +502,26 @@ const DetalleBuff = ({
             padding: '0.4rem 0',
           }}
         >
-          {entradas.map(([k, v]) => (
-            <div key={k} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
-              {v >= 0 ? '+' : ''}
-              {v} {NOMBRE_STAT_BUFF[k] ?? k.replace(/_/g, ' ')}
-            </div>
-          ))}
+          {entradas.map(([k, deltaFlat]) => {
+            const pctOriginal = esPct ? (buff.efecto_original?.stats[k] ?? null) : null;
+            const signoFlat = deltaFlat >= 0 ? '+' : '';
+            const nombreK = NOMBRE_STAT_BUFF[k] ?? k.replace(/_/g, ' ');
+            return (
+              <div key={k} style={{ color: theme.accent, fontFamily: 'var(--font-body)' }}>
+                {pctOriginal != null ? (
+                  <>
+                    {pctOriginal >= 0 ? '+' : ''}{pctOriginal}% {nombreK}
+                    {' '}
+                    <span style={{ opacity: 0.6, fontSize: '0.8em' }}>
+                      ({signoFlat}{deltaFlat})
+                    </span>
+                  </>
+                ) : (
+                  <>{signoFlat}{deltaFlat} {nombreK}</>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div style={{ color: theme.text }}>Sin efecto asociado.</div>
@@ -543,7 +564,7 @@ export const PoderesView = ({
 
       supabase
         .from('character_buffs_activos')
-        .select('id, nombre, stats, expira_en')
+        .select('id, nombre, stats, expira_en, efecto_original')
         .eq('telegram_id', perfil.telegram_id)
         .gt('expira_en', new Date().toISOString()),
       supabase
